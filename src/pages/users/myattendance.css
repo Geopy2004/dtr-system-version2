@@ -1,0 +1,177 @@
+/* =========================
+   PAGE WRAPPER
+========================= */
+
+.my-attendance {
+  padding: 24px;
+  background: #f6f7fb;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+}
+
+.my-attendance h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #1f2937;
+}
+
+/* =========================
+   FILTER SECTION
+========================= */
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 14px;
+
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+}
+
+.filters input {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  outline: none;
+  font-size: 0.95rem;
+  transition: 0.2s;
+}
+
+.filters input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.filters span {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* BUTTONS */
+
+.filters button {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.2s ease;
+}
+
+/* Filter button */
+.filters button:nth-of-type(1) {
+  background: #3b82f6;
+  color: white;
+}
+
+.filters button:nth-of-type(1):hover {
+  background: #2563eb;
+}
+
+/* Export button */
+.filters button:nth-of-type(2) {
+  background: #10b981;
+  color: white;
+}
+
+.filters button:nth-of-type(2):hover {
+  background: #059669;
+}
+
+/* =========================
+   TABLE WRAPPER
+========================= */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+}
+
+/* HEADER */
+
+thead {
+  background: #111827;
+  color: white;
+}
+
+thead th {
+  padding: 14px;
+  text-align: left;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* ROWS */
+
+tbody td {
+  padding: 14px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.92rem;
+  color: #374151;
+}
+
+tbody tr:hover {
+  background: #f3f4f6;
+  transition: 0.2s;
+}
+
+/* =========================
+   STATUS COLORS
+========================= */
+
+.status-present {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.status-late {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.status-absent {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+/* =========================
+   LOADING STATE
+========================= */
+
+.my-attendance > div {
+  font-size: 1rem;
+  color: #6b7280;
+  padding: 20px;
+}
+
+/* =========================
+   MOBILE RESPONSIVE
+========================= */
+
+@media (max-width: 768px) {
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  thead th,
+  tbody td {
+    padding: 12px;
+  }
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { attendanceAPI } from '../../../services/api';
 import { format } from 'date-fns';
-
+import "./myattendance.css";
 export default function MyAttendance() {
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);

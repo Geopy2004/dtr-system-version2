@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 
+import Navbar from "../../components/layout/Navbar";
 import TimeInOut from "../../components/users/timeinout";
 import { attendanceAPI } from "../../services/api";
 import styles from "./UserDashboard.module.css";
 
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // helpers
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 
 function statusClass(status) {
   if (!status) return "";
@@ -34,7 +35,6 @@ function safeFormat(value, fmt) {
     if (!value) return "—";
 
     const date = new Date(value);
-
     if (isNaN(date.getTime())) return "—";
 
     return format(date, fmt);
@@ -43,9 +43,9 @@ function safeFormat(value, fmt) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// reusable stat card
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// stat card
+// ─────────────────────────────────────────────
 
 function StatCard({ label, value, icon, accent, subtitle }) {
   return (
@@ -70,9 +70,9 @@ function StatCard({ label, value, icon, accent, subtitle }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// dashboard
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// MAIN DASHBOARD
+// ─────────────────────────────────────────────
 
 export default function UserDashboard() {
   const [stats, setStats] = useState({
@@ -86,11 +86,26 @@ export default function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // ✅ REAL-TIME CLOCK STATE
+  const [now, setNow] = useState(new Date());
+
   const today = useMemo(() => new Date(), []);
 
-  // ───────────────────────────────────────────────────────────
-  // fetch dashboard data
-  // ───────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────
+  // LIVE CLOCK UPDATE (EVERY SECOND)
+  // ─────────────────────────────────────────────
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // ─────────────────────────────────────────────
+  // FETCH DATA
+  // ─────────────────────────────────────────────
 
   useEffect(() => {
     async function loadDashboard() {
@@ -130,7 +145,7 @@ export default function UserDashboard() {
 
         setRecentAttendance(recentResult?.attendance || []);
       } catch (err) {
-        console.error("Dashboard error:", err);
+        console.error(err);
         setError("Failed to load dashboard data.");
       } finally {
         setLoading(false);
@@ -140,9 +155,9 @@ export default function UserDashboard() {
     loadDashboard();
   }, []);
 
-  // ───────────────────────────────────────────────────────────
-  // computed values
-  // ───────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────
+  // COMPUTED
+  // ─────────────────────────────────────────────
 
   const attendanceRate =
     stats.total_days > 0
@@ -156,18 +171,25 @@ export default function UserDashboard() {
       ? "Good attendance"
       : "Needs improvement";
 
-  // ───────────────────────────────────────────────────────────
-  // render
-  // ───────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────
+  // UI
+  // ─────────────────────────────────────────────
 
   return (
     <div className={styles.dashboard}>
-      {/* HEADER */}
 
+      <Navbar />
+
+      {/* HEADER */}
       <header className={styles.header}>
         <div>
+
+          {/* ✅ LIVE DATE + CLOCK */}
           <p className={styles.headerDate}>
-            {format(today, "EEEE, MMMM d, yyyy")}
+            {format(now, "EEEE, MMMM d, yyyy")} •{" "}
+            <span className={styles.clock}>
+              {format(now, "hh:mm:ss a")}
+            </span>
           </p>
 
           <h1 className={styles.headerTitle}>
@@ -185,7 +207,6 @@ export default function UserDashboard() {
       </header>
 
       {/* STATS */}
-
       <section className={styles.statsGrid}>
         <StatCard
           label="Total Days"
@@ -193,19 +214,8 @@ export default function UserDashboard() {
           subtitle="Working days"
           accent="default"
           icon={
-            <svg
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            >
-              <rect
-                x="3"
-                y="4"
-                width="14"
-                height="13"
-                rx="2"
-              />
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
+              <rect x="3" y="4" width="14" height="13" rx="2" />
               <path d="M3 8h14M7 2v4M13 2v4" />
             </svg>
           }
@@ -217,17 +227,8 @@ export default function UserDashboard() {
           subtitle="Attendance days"
           accent="green"
           icon={
-            <svg
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            >
-              <path
-                d="M4 10.5l4 4 8-8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
+              <path d="M4 10.5l4 4 8-8" />
             </svg>
           }
         />
@@ -238,17 +239,9 @@ export default function UserDashboard() {
           subtitle="Times late"
           accent="amber"
           icon={
-            <svg
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            >
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
               <circle cx="10" cy="10" r="7" />
-              <path
-                d="M10 6v4l2.5 2.5"
-                strokeLinecap="round"
-              />
+              <path d="M10 6v4l2.5 2.5" />
             </svg>
           }
         />
@@ -259,24 +252,15 @@ export default function UserDashboard() {
           subtitle="Total minutes"
           accent="red"
           icon={
-            <svg
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            >
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
               <circle cx="10" cy="10" r="7" />
-              <path
-                d="M10 5v5l3 2"
-                strokeLinecap="round"
-              />
+              <path d="M10 5v5l3 2" />
             </svg>
           }
         />
       </section>
 
-      {/* ATTENDANCE RATE */}
-
+      {/* RATE */}
       <section className={styles.rateCard}>
         <div className={styles.rateHeader}>
           <div>
@@ -290,117 +274,67 @@ export default function UserDashboard() {
         <div className={styles.rateTrack}>
           <div
             className={styles.rateFill}
-            style={{
-              width: `${attendanceRate}%`,
-            }}
+            style={{ width: `${attendanceRate}%` }}
           />
         </div>
       </section>
 
-      {/* TIME IN / OUT */}
-
+      {/* TIME IN OUT */}
       <section className={styles.timeSection}>
-        <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>
-            Time Monitoring
-          </h2>
-
-          <span className={styles.sectionSub}>
-            Daily attendance actions
-          </span>
-        </div>
+        <h2 className={styles.sectionTitle}>
+          Time Monitoring
+        </h2>
 
         <TimeInOut />
       </section>
 
-      {/* RECENT ATTENDANCE */}
-
+      {/* RECENT */}
       <section className={styles.recentSection}>
-        <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>
-            Recent Attendance
-          </h2>
-
-          <span className={styles.sectionSub}>
-            Last 5 attendance records
-          </span>
-        </div>
+        <h2 className={styles.sectionTitle}>
+          Recent Attendance
+        </h2>
 
         {loading ? (
-          <div className={styles.emptyState}>
-            Loading attendance records...
-          </div>
+          <div>Loading attendance records...</div>
         ) : error ? (
-          <div className={styles.errorState}>
-            {error}
-          </div>
+          <div>{error}</div>
         ) : recentAttendance.length === 0 ? (
-          <div className={styles.emptyState}>
-            No attendance records found.
-          </div>
+          <div>No attendance records found.</div>
         ) : (
-          <div className={styles.tableWrapper}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Time In</th>
-                  <th>Time Out</th>
-                  <th>Status</th>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Time In</th>
+                <th>Time Out</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {recentAttendance.map((record) => (
+                <tr key={record.id}>
+                  <td>
+                    {safeFormat(record.date, "MMM dd, yyyy")}
+                  </td>
+
+                  <td>
+                    {safeFormat(record.time_in, "hh:mm a")}
+                  </td>
+
+                  <td>
+                    {record.time_out
+                      ? safeFormat(record.time_out, "hh:mm a")
+                      : "—"}
+                  </td>
+
+                  <td className={statusClass(record.status)}>
+                    {record.status}
+                  </td>
                 </tr>
-              </thead>
-
-              <tbody>
-                {recentAttendance.map((record) => (
-                  <tr key={record.id}>
-                    <td className={styles.dateCell}>
-                      {safeFormat(
-                        record.date,
-                        "MMM dd, yyyy"
-                      )}
-                    </td>
-
-                    <td>
-                      {safeFormat(
-                        record.time_in,
-                        "hh:mm a"
-                      )}
-                    </td>
-
-                    <td>
-                      {record.time_out ? (
-                        safeFormat(
-                          record.time_out,
-                          "hh:mm a"
-                        )
-                      ) : (
-                        <span className={styles.dash}>
-                          —
-                        </span>
-                      )}
-                    </td>
-
-                    <td>
-                      <span
-                        className={`${styles.statusBadge} ${statusClass(
-                          record.status
-                        )}`}
-                      >
-                        {record.status
-                          ? record.status
-                              .replace("-", " ")
-                              .replace(
-                                /\b\w/g,
-                                (c) => c.toUpperCase()
-                              )
-                          : "—"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </section>
     </div>

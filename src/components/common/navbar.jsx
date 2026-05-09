@@ -18,19 +18,30 @@ export default function Navbar() {
 
   return (
     <nav className="navbar">
-      <div className="navbar-brand">
-        <h2>Attendance System</h2>
+      {/* LEFT - BRAND */}
+      <div className="navbar-left">
+        <div className="brand">
+          <div className="logo">📊</div>
+          <h2>Attendance System</h2>
+        </div>
       </div>
 
-      <div className="navbar-menu">
-        <div className="user-info">
-          <span className="user-name">
-            {user?.user_metadata?.name || user?.email}
-          </span>
+      {/* RIGHT - USER INFO */}
+      <div className="navbar-right">
+        <div className="user-box">
+          <div className="user-avatar">
+            {user?.email?.charAt(0).toUpperCase()}
+          </div>
 
-          <span className={`user-role ${userRole}`}>
-            {userRole}
-          </span>
+          <div className="user-details">
+            <span className="user-name">
+              {user?.user_metadata?.name || user?.email}
+            </span>
+
+            <span className={`user-role ${userRole}`}>
+              {userRole}
+            </span>
+          </div>
         </div>
 
         <button onClick={handleLogout} className="logout-btn">
