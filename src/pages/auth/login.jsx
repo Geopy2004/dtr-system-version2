@@ -1,68 +1,69 @@
-import { useState } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
-import "./login.css";
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
+import './login.css';
+export default function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-function Login() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-
+  const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    setLoading(true);
 
     try {
-      const res = await axios.post(
-        "http://localhost/dtr-api/login.php",
-        {
-          username,
-          password,
-        }
-      );
+      const data = await login(email, password);
+      const userRole = data.user.user_metadata?.role || 'user';
 
-      console.log("Response:", res.data); // Debug: See what API returns
+      toast.success('Login successful!');
 
-      if (res.data.role === "admin") {
-        navigate("/admin");
-      } else if (res.data.role === "user") {
-        navigate("/user");
+      if (userRole === 'admin') {
+        navigate('/admin/dashboard');
       } else {
-        setError("Invalid role specified");
+        navigate('/user/dashboard');
       }
-    } catch (err) {
-      console.error("Login error:", err);
-      setError("Invalid login credentials");
+    } catch (error) {
+      toast.error(error.message || 'Login failed');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="login-container">
-      <form onSubmit={handleLogin}>
-        <h1>DTR Login</h1>
+      <div className="login-card">
+        <h2>Attendance System Login</h2>
 
-        <input
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+          <div className="form-group">
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
 
-        {error && <div className="error-message">{error}</div>}
-
-        <button type="submit">Login</button>
-      </form>
+          <button type="submit" disabled={loading}>
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
-
-export default Login;

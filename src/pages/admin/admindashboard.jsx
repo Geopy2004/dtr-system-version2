@@ -1,104 +1,119 @@
-import { FaUsers, FaClock, FaCalendarCheck, FaUserShield } from "react-icons/fa";
+import { useState, useEffect } from 'react';
+import { adminAPI } from '../../services/api';
 import "./admindashboard.css";
-function AdminDashboard() {
-  const stats = [
-    {
-      title: "Total Users",
-      value: 120,
-      icon: <FaUsers />,
-      color: "#2563eb",
+export default function AdminDashboard() {
+  const [stats, setStats] = useState({
+    total_users: 0,
+    active_users: 0,
+    today_attendance: {
+      total_checked_in: 0,
+      present: 0,
+      late: 0,
+      half_day: 0,
     },
-    {
-      title: "Present Today",
-      value: 98,
-      icon: <FaCalendarCheck />,
-      color: "#16a34a",
-    },
-    {
-      title: "Late Employees",
-      value: 7,
-      icon: <FaClock />,
-      color: "#f59e0b",
-    },
-    {
-      title: "Admins",
-      value: 3,
-      icon: <FaUserShield />,
-      color: "#dc2626",
-    },
-  ];
+    today_logged_in: 0,
+  });
+
+  const [recentAttendance, setRecentAttendance] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // ======================
+  // LOAD DASHBOARD DATA
+  // ======================
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        const [statsResult, attendanceResult] = await Promise.all([
+          adminAPI.getDashboardStats(),
+          adminAPI.getAllAttendance({ limit: 10 }),
+        ]);
+
+        setStats(statsResult);
+        setRecentAttendance(attendanceResult?.attendance || []);
+      } catch (error) {
+        console.error('Dashboard load error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboard();
+  }, []);
+
+  if (loading) return <div>Loading dashboard...</div>;
 
   return (
-    <div className="dashboard">
-      {/* Header */}
-      <div className="dashboard-header">
-        <h1>Admin Dashboard</h1>
-        <p>Manage users and monitor attendance records.</p>
-      </div>
+    <div className="admin-dashboard">
+      <h1>Admin Dashboard</h1>
 
-      {/* Stats Cards */}
+      {/* ================= STATS ================= */}
       <div className="stats-grid">
-        {stats.map((stat, index) => (
-          <div className="card" key={index}>
-            <div
-              className="icon-box"
-              style={{ backgroundColor: stat.color }}
-            >
-              {stat.icon}
-            </div>
+        <div className="stat-card">
+          <h3>Total Users</h3>
+          <p className="stat-number">{stats.total_users}</p>
+          <span className="stat-label">
+            Active: {stats.active_users}
+          </span>
+        </div>
 
-            <div>
-              <h3>{stat.value}</h3>
-              <p>{stat.title}</p>
-            </div>
+        <div className="stat-card">
+          <h3>Today's Check-ins</h3>
+          <p className="stat-number">
+            {stats.today_attendance.total_checked_in}
+          </p>
+          <div className="stat-details">
+            <span>Present: {stats.today_attendance.present}</span>
+            <span>Late: {stats.today_attendance.late}</span>
+            <span>Half Day: {stats.today_attendance.half_day}</span>
           </div>
-        ))}
+        </div>
+
+        <div className="stat-card">
+          <h3>Today's Logins</h3>
+          <p className="stat-number">
+            {stats.today_logged_in}
+          </p>
+        </div>
       </div>
 
-      {/* Recent Logs */}
-      <div className="table-container">
-        <h2>Recent Attendance Logs</h2>
+      {/* ================= RECENT ACTIVITY ================= */}
+      <div className="recent-activity">
+        <h3>Recent Attendance Activity</h3>
 
         <table>
           <thead>
             <tr>
-              <th>Name</th>
+              <th>Employee</th>
+              <th>Department</th>
               <th>Date</th>
               <th>Time In</th>
-              <th>Time Out</th>
               <th>Status</th>
             </tr>
           </thead>
 
           <tbody>
-            <tr>
-              <td>Juan Dela Cruz</td>
-              <td>May 8, 2026</td>
-              <td>8:00 AM</td>
-              <td>5:00 PM</td>
-              <td className="present">Present</td>
-            </tr>
-
-            <tr>
-              <td>Maria Santos</td>
-              <td>May 8, 2026</td>
-              <td>8:20 AM</td>
-              <td>5:00 PM</td>
-              <td className="late">Late</td>
-            </tr>
-
-            <tr>
-              <td>Pedro Reyes</td>
-              <td>May 8, 2026</td>
-              <td>—</td>
-              <td>—</td>
-              <td className="absent">Absent</td>
-            </tr>
+            {recentAttendance.map((record) => (
+              <tr key={record.id}>
+                <td>{record.profiles?.name}</td>
+                <td>{record.profiles?.department}</td>
+                <td>
+                  {record.date
+                    ? new Date(record.date).toLocaleDateString()
+                    : '-'}
+                </td>
+                <td>
+                  {record.time_in
+                    ? new Date(record.time_in).toLocaleTimeString()
+                    : '-'}
+                </td>
+                <td className={`status-${record.status}`}>
+                  {record.status}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
     </div>
   );
 }
-
-export default AdminDashboard;
