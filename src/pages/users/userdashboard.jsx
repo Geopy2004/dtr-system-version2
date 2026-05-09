@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 
-import Navbar from "../../components/layout/Navbar";
+import Navbar from "../../components/layout/navbar";
 import TimeInOut from "../../components/users/timeinout";
 import { attendanceAPI } from "../../services/api";
 import styles from "./UserDashboard.module.css";

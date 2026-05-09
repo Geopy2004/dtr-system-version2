@@ -15,6 +15,7 @@ export default function UserLogs() {
     endDate: '',
   });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchLogs = async () => {
     setLoading(true);
 
@@ -49,7 +50,7 @@ export default function UserLogs() {
     };
 
     loadLogs();
-  }, [filters]);
+  }, [fetchLogs, filters]);
 
   const getActionBadge = (action) => {
     const badges = {

@@ -1,28 +1,30 @@
-import { supabase } from './supabase';
+import { supabase } from "./supabase";
 
-// VITE env (with fallback to prevent crash)
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost';
-
+// 🔥 FIXED: backend port (NOT 5173)
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 // ======================
-// Helper: Get Token
+// GET SUPABASE TOKEN
 // ======================
 const getToken = async () => {
   const { data, error } = await supabase.auth.getSession();
 
-  if (error) return null;
+  if (error) {
+    console.error("Session error:", error);
+    return null;
+  }
 
   return data?.session?.access_token || null;
 };
 
 // ======================
-// API CLIENT
+// BASE REQUEST
 // ======================
-const apiClient = async (endpoint, options = {}) => {
+const apiRequest = async (endpoint, options = {}) => {
   const token = await getToken();
 
   const headers = {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
 
@@ -32,7 +34,6 @@ const apiClient = async (endpoint, options = {}) => {
   });
 
   let data;
-
   try {
     data = await response.json();
   } catch {
@@ -40,111 +41,64 @@ const apiClient = async (endpoint, options = {}) => {
   }
 
   if (!response.ok) {
-    throw new Error(data?.message || 'API request failed');
+    console.log("API ERROR:", data);
+    throw new Error(data?.message || "Request failed");
   }
 
   return data;
 };
 
 // ======================
-// AUTH APIs
-// ======================
-export const authAPI = {
-  login: async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) throw error;
-    return data;
-  },
-
-  register: async (userData) => {
-    const response = await fetch(`${API_URL}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(userData),
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => null);
-      throw new Error(err?.message || 'Registration failed');
-    }
-
-    return response.json();
-  },
-
-  logout: async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-  },
-
-  getCurrentUser: async () => {
-    const { data, error } = await supabase.auth.getUser();
-
-    if (error) return null;
-
-    return data?.user || null;
-  },
-};
-
-// ======================
-// ATTENDANCE APIs
+// ATTENDANCE API
 // ======================
 export const attendanceAPI = {
-  timeIn: async (location, notes) => {
-    return apiClient('/attendance/timein', {
-      method: 'POST',
+  timeIn: (location = "", notes = "") =>
+    apiRequest("/attendance/timein", {
+      method: "POST",
       body: JSON.stringify({ location, notes }),
-    });
-  },
+    }),
 
-  timeOut: async () => {
-    return apiClient('/attendance/timeout', {
-      method: 'POST',
-    });
-  },
+  timeOut: () =>
+    apiRequest("/attendance/timeout", {
+      method: "POST",
+    }),
 
-  getMyAttendance: async (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    return apiClient(`/attendance/my-attendance?${queryString}`);
+  getMyAttendance: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/attendance/my-attendance?${query}`);
   },
 };
 
 // ======================
-// ADMIN APIs
+// ADMIN API (COMPLETE)
 // ======================
 export const adminAPI = {
-  getAllUsers: async (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    return apiClient(`/admin/users?${queryString}`);
+  getAllUsers: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/admin/users?${query}`);
   },
 
-  updateUser: async (userId, userData) => {
-    return apiClient(`/admin/users/${userId}`, {
-      method: 'PUT',
-      body: JSON.stringify(userData),
-    });
+  updateUser: (id, data) =>
+    apiRequest(`/admin/users/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deleteUser: (id) =>
+    apiRequest(`/admin/users/${id}`, {
+      method: "DELETE",
+    }),
+
+  getAllAttendance: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/admin/attendance?${query}`);
   },
 
-  deleteUser: async (userId) => {
-    return apiClient(`/admin/users/${userId}`, {
-      method: 'DELETE',
-    });
-  },
+  getDashboardStats: () =>
+    apiRequest("/admin/dashboard-stats"),
 
-  getAllAttendance: async (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    return apiClient(`/admin/attendance?${queryString}`);
-  },
-
-  getDashboardStats: async () => {
-    return apiClient('/admin/dashboard-stats');
-  },
-
-  getUserLogs: async (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    return apiClient(`/admin/logs?${queryString}`);
+  getUserLogs: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/admin/logs?${query}`);
   },
 };
