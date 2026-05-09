@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { attendanceAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
-
+import "./timeinout.css";
 export default function TimeInOut() {
   const [loading, setLoading] = useState(false);
   const [todayAttendance, setTodayAttendance] = useState(null);
