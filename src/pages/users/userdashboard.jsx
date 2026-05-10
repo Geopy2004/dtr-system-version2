@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import Sidebar from "../../components/common/Sidebar.jsx";
 import { attendanceAPI } from "../../services/api";
+import { useAuth } from "../../context/AuthContext"; // Assuming you have auth context
 
 import styles from "./UserDashboard.module.css";
 
@@ -55,6 +56,8 @@ function StatCard({ label, value, icon, accent, subtitle }) {
 
 export default function UserDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth(); // Get current user from auth context
+  
   const [stats, setStats] = useState({
     total_days: 0,
     present: 0,
@@ -90,24 +93,60 @@ export default function UserDashboard() {
         setLoading(true);
         setError("");
 
+        // Verify user exists before making API calls
+        if (!user || !user.id) {
+          setError("User not authenticated. Please log in.");
+          return;
+        }
+
+        // Check if attendanceAPI has the getMyAttendance method
+        if (!attendanceAPI || typeof attendanceAPI.getMyAttendance !== 'function') {
+          console.error("attendanceAPI.getMyAttendance is not available");
+          setError("API method not available. Please check your API configuration.");
+          return;
+        }
+
+        // Make API calls with proper date range
         const [statsResult, recentResult] = await Promise.all([
-          attendanceAPI.getMyAttendance({ startDate, endDate }),
-          attendanceAPI.getMyAttendance({ limit: 5 }),
+          attendanceAPI.getMyAttendance({ 
+            startDate, 
+            endDate,
+            userId: user.id // Explicitly pass user ID
+          }),
+          attendanceAPI.getMyAttendance({ 
+            limit: 5,
+            userId: user.id // Explicitly pass user ID
+          }),
         ]);
 
+        // Safely set stats with defaults
         setStats(statsResult?.stats ?? {
-          total_days: 0, present: 0, late: 0, total_late_minutes: 0,
+          total_days: 0, 
+          present: 0, 
+          late: 0, 
+          total_late_minutes: 0,
         });
+
+        // Safely set attendance records
         setRecentAttendance(recentResult?.attendance ?? []);
       } catch (err) {
-        console.error(err);
-        setError("Failed to load dashboard data.");
+        console.error("Dashboard error:", err);
+        
+        // Provide user-friendly error messages
+        if (err.code === '22P02') {
+          setError("Invalid user ID format. Please refresh and try again.");
+        } else if (err.status === 400) {
+          setError("Invalid request parameters. Please contact support.");
+        } else {
+          setError(err.message || "Failed to load dashboard data.");
+        }
       } finally {
         setLoading(false);
       }
     }
+
     loadDashboard();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, user]);
 
   // ATTENDANCE RATE
   const attendanceRate = useMemo(() => {
@@ -120,6 +159,20 @@ export default function UserDashboard() {
     if (attendanceRate >= 75) return "Good attendance";
     return "Needs improvement";
   }, [attendanceRate]);
+
+  // Show loading state until user is loaded
+  if (!user) {
+    return (
+      <div className={styles.layout}>
+        <Sidebar />
+        <div className={styles.mainContent}>
+          <div className={styles.dashboard}>
+            <div className={styles.loadingState}>Initializing...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ─────────────────────────────────────────────
   // UI
