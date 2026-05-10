@@ -1,78 +1,139 @@
 import { supabase } from "./supabase";
 
-export const AttendanceAPI = {
-  // Time in
+// ─────────────────────────────────────────────
+// ATTENDANCE API
+// ─────────────────────────────────────────────
+
+export const attendanceAPI = {
+  // TIME IN
   async timeIn(userId) {
     const now = new Date();
     const today = now.toISOString().split("T")[0];
 
-    // Check if already timed in today
-    const { data: existing } = await supabase
-      .from("attendance")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("date", today)
-      .single();
+    // Check existing record
+    const { data: existing, error: existingError } =
+      await supabase
+        .from("attendance")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("date", today)
+        .maybeSingle();
+
+    if (existingError) throw existingError;
 
     if (existing) {
       throw new Error("Already timed in today.");
     }
 
+    // Determine status
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    let status = "present";
+    let late_minutes = 0;
+
+    // Example: late after 8:00 AM
+    if (currentHour >= 8 && currentMinute > 0) {
+      status = "late";
+
+      late_minutes =
+        (currentHour - 8) * 60 + currentMinute;
+    }
+
     const { data, error } = await supabase
       .from("attendance")
-      .insert([{ user_id: userId, date: today, time_in: now.toISOString() }])
+      .insert([
+        {
+          user_id: userId,
+          date: today,
+          time_in: now.toISOString(),
+          status,
+          late_minutes,
+        },
+      ])
       .select()
       .single();
 
     if (error) throw error;
+
     return data;
   },
 
-  // Time out
+  // TIME OUT
   async timeOut(userId) {
     const now = new Date();
     const today = now.toISOString().split("T")[0];
 
-    const { data: existing } = await supabase
+    const {
+      data: existing,
+      error: fetchError,
+    } = await supabase
       .from("attendance")
       .select("*")
       .eq("user_id", userId)
       .eq("date", today)
-      .single();
+      .maybeSingle();
 
-    if (!existing) throw new Error("No time-in record found for today.");
-    if (existing.time_out) throw new Error("Already timed out today.");
+    if (fetchError) throw fetchError;
+
+    if (!existing) {
+      throw new Error(
+        "No time-in record found for today."
+      );
+    }
+
+    if (existing.time_out) {
+      throw new Error("Already timed out today.");
+    }
 
     const timeIn = new Date(existing.time_in);
-    const hoursWorked = (now - timeIn) / 1000 / 60 / 60;
+
+    const hoursWorked = (
+      (now - timeIn) /
+      1000 /
+      60 /
+      60
+    ).toFixed(2);
 
     const { data, error } = await supabase
       .from("attendance")
-      .update({ time_out: now.toISOString(), hours_worked: hoursWorked.toFixed(2) })
+      .update({
+        time_out: now.toISOString(),
+        hours_worked: hoursWorked,
+      })
       .eq("id", existing.id)
       .select()
       .single();
 
     if (error) throw error;
+
     return data;
   },
 
-  // Get today's record
+  // TODAY RECORD
   async getTodayRecord(userId) {
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date()
+      .toISOString()
+      .split("T")[0];
+
     const { data, error } = await supabase
       .from("attendance")
       .select("*")
       .eq("user_id", userId)
       .eq("date", today)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== "PGRST116") throw error;
+    if (error) throw error;
+
     return data;
   },
 
-  // Get records by date range
-  async getRecords(userId, startDate, endDate) {
+  // USER RECORDS
+  async getRecords(
+    userId,
+    startDate,
+    endDate
+  ) {
     const { data, error } = await supabase
       .from("attendance")
       .select("*")
@@ -82,73 +143,191 @@ export const AttendanceAPI = {
       .order("date", { ascending: false });
 
     if (error) throw error;
-    return data;
+
+    return data || [];
   },
 
-  // Admin: get all records
+  // DASHBOARD API
+  async getMyAttendance({
+    startDate,
+    endDate,
+    limit,
+  } = {}) {
+    // Get logged-in user
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) throw userError;
+
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
+
+    let query = supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("date", {
+        ascending: false,
+      });
+
+    if (startDate) {
+      query = query.gte("date", startDate);
+    }
+
+    if (endDate) {
+      query = query.lte("date", endDate);
+    }
+
+    if (limit) {
+      query = query.limit(limit);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    const stats = {
+      total_days: data?.length || 0,
+
+      present:
+        data?.filter(
+          (r) => r.status === "present"
+        ).length || 0,
+
+      late:
+        data?.filter((r) => r.status === "late")
+          .length || 0,
+
+      total_late_minutes:
+        data?.reduce(
+          (sum, r) =>
+            sum + (r.late_minutes || 0),
+          0
+        ) || 0,
+    };
+
+    return {
+      attendance: data || [],
+      stats,
+    };
+  },
+
+  // ADMIN: ALL RECORDS
   async getAllRecords(startDate, endDate) {
     const { data, error } = await supabase
       .from("attendance")
-      .select("*, profiles(full_name, email, department)")
+      .select(
+        `
+        *,
+        profiles (
+          full_name,
+          email,
+          department
+        )
+      `
+      )
       .gte("date", startDate)
       .lte("date", endDate)
       .order("date", { ascending: false });
 
     if (error) throw error;
-    return data;
+
+    return data || [];
   },
 
-  // Admin: get all records for a specific user
-  async getUserRecords(userId, startDate, endDate) {
+  // ADMIN: USER RECORDS
+  async getUserRecords(
+    userId,
+    startDate,
+    endDate
+  ) {
     const { data, error } = await supabase
       .from("attendance")
-      .select("*, profiles(full_name, email, department)")
+      .select(
+        `
+        *,
+        profiles (
+          full_name,
+          email,
+          department
+        )
+      `
+      )
       .eq("user_id", userId)
       .gte("date", startDate)
       .lte("date", endDate)
       .order("date", { ascending: false });
 
     if (error) throw error;
-    return data;
+
+    return data || [];
   },
 };
-// Admin API
+
+// ─────────────────────────────────────────────
+// ADMIN API
+// ─────────────────────────────────────────────
+
 export const adminAPI = {
   async getDashboardStats() {
     // Total users
     const { count: totalUsers } = await supabase
       .from("profiles")
-      .select("*", { count: "exact", head: true });
+      .select("*", {
+        count: "exact",
+        head: true,
+      });
 
     // Active users
-    const { count: activeUsers } = await supabase
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true);
+    const { count: activeUsers } =
+      await supabase
+        .from("profiles")
+        .select("*", {
+          count: "exact",
+          head: true,
+        })
+        .eq("is_active", true);
 
     // Today's attendance
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date()
+      .toISOString()
+      .split("T")[0];
 
-    const { data: attendanceData } = await supabase
-      .from("attendance")
-      .select("*")
-      .eq("date", today);
+    const { data: attendanceData, error } =
+      await supabase
+        .from("attendance")
+        .select("*")
+        .eq("date", today);
+
+    if (error) throw error;
 
     const present =
-      attendanceData?.filter((a) => a.status === "present").length || 0;
+      attendanceData?.filter(
+        (a) => a.status === "present"
+      ).length || 0;
 
     const late =
-      attendanceData?.filter((a) => a.status === "late").length || 0;
+      attendanceData?.filter(
+        (a) => a.status === "late"
+      ).length || 0;
 
     const half_day =
-      attendanceData?.filter((a) => a.status === "half_day").length || 0;
+      attendanceData?.filter(
+        (a) => a.status === "half_day"
+      ).length || 0;
 
     return {
       total_users: totalUsers || 0,
+
       active_users: activeUsers || 0,
 
       today_attendance: {
-        total_checked_in: attendanceData?.length || 0,
+        total_checked_in:
+          attendanceData?.length || 0,
+
         present,
         late,
         half_day,
@@ -158,7 +337,9 @@ export const adminAPI = {
     };
   },
 
-  async getAllAttendance({ limit = 10 } = {}) {
+  async getAllAttendance({
+    limit = 10,
+  } = {}) {
     const { data, error } = await supabase
       .from("attendance")
       .select(
@@ -170,7 +351,9 @@ export const adminAPI = {
         )
       `
       )
-      .order("date", { ascending: false })
+      .order("date", {
+        ascending: false,
+      })
       .limit(limit);
 
     if (error) throw error;

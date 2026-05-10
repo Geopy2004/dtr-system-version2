@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+
 import TimeInOut from "../../components/users/timeinout";
-import Sidebar from "../../components/layout/sidebar";
+import Sidebar from "../../components/common/Sidebar.jsx";
 import { attendanceAPI } from "../../services/api";
+
 import styles from "./UserDashboard.module.css";
 
 // ─────────────────────────────────────────────
-// helpers
+// HELPERS
 // ─────────────────────────────────────────────
 
 function statusClass(status) {
@@ -37,7 +39,7 @@ function safeFormat(value, fmt) {
 }
 
 // ─────────────────────────────────────────────
-// stat card
+// STAT CARD
 // ─────────────────────────────────────────────
 
 function StatCard({ label, value, icon, accent, subtitle }) {
@@ -56,7 +58,9 @@ function StatCard({ label, value, icon, accent, subtitle }) {
         <p className={styles.statLabel}>{label}</p>
 
         {subtitle && (
-          <span className={styles.statSubtitle}>{subtitle}</span>
+          <span className={styles.statSubtitle}>
+            {subtitle}
+          </span>
         )}
       </div>
     </div>
@@ -75,7 +79,9 @@ export default function UserDashboard() {
     total_late_minutes: 0,
   });
 
-  const [recentAttendance, setRecentAttendance] = useState([]);
+  const [recentAttendance, setRecentAttendance] =
+    useState([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -85,7 +91,10 @@ export default function UserDashboard() {
 
   // LIVE CLOCK
   useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 1000);
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+
     return () => clearInterval(interval);
   }, []);
 
@@ -107,10 +116,16 @@ export default function UserDashboard() {
         setLoading(true);
         setError("");
 
-        const [statsResult, recentResult] = await Promise.all([
-          attendanceAPI.getMyAttendance({ startDate, endDate }),
-          attendanceAPI.getMyAttendance({ limit: 5 }),
-        ]);
+        const [statsResult, recentResult] =
+          await Promise.all([
+            attendanceAPI.getMyAttendance({
+              startDate,
+              endDate,
+            }),
+            attendanceAPI.getMyAttendance({
+              limit: 5,
+            }),
+          ]);
 
         setStats(
           statsResult?.stats ?? {
@@ -121,7 +136,9 @@ export default function UserDashboard() {
           }
         );
 
-        setRecentAttendance(recentResult?.attendance ?? []);
+        setRecentAttendance(
+          recentResult?.attendance ?? []
+        );
       } catch (err) {
         console.error(err);
         setError("Failed to load dashboard data.");
@@ -133,28 +150,34 @@ export default function UserDashboard() {
     loadDashboard();
   }, [startDate, endDate]);
 
-  // COMPUTED
+  // ATTENDANCE RATE
   const attendanceRate = useMemo(() => {
     if (!stats.total_days) return 0;
-    return Math.round((stats.present / stats.total_days) * 100);
+
+    return Math.round(
+      (stats.present / stats.total_days) * 100
+    );
   }, [stats]);
 
   const attendanceMessage = useMemo(() => {
-    if (attendanceRate >= 90) return "Excellent attendance";
-    if (attendanceRate >= 75) return "Good attendance";
+    if (attendanceRate >= 90)
+      return "Excellent attendance";
+    if (attendanceRate >= 75)
+      return "Good attendance";
     return "Needs improvement";
   }, [attendanceRate]);
 
+  // ─────────────────────────────────────────────
   // UI
+  // ─────────────────────────────────────────────
+
   return (
-   <div className={styles.layout}>
+    <div className={styles.layout}>
+      {/* SIDEBAR */}
+      <Sidebar />
 
-    {/* SIDEBAR */}
-    <Sidebar />
-
-      {/* MAIN CONTENT */}
+      {/* MAIN */}
       <div className={styles.dashboard}>
-
         {/* HEADER */}
         <header className={styles.header}>
           <div>
@@ -165,10 +188,13 @@ export default function UserDashboard() {
               </span>
             </p>
 
-            <h1 className={styles.headerTitle}>Welcome Back 👋</h1>
+            <h1 className={styles.headerTitle}>
+              Welcome Back 👋
+            </h1>
 
             <p className={styles.headerSubtitle}>
-              Here's your attendance overview for this month.
+              Here's your attendance overview for this
+              month.
             </p>
           </div>
 
@@ -182,44 +208,26 @@ export default function UserDashboard() {
           <StatCard
             label="Total Days"
             value={stats.total_days}
-            subtitle="Working days"
             accent="default"
-            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
-              <rect x="3" y="4" width="14" height="13" rx="2" />
-              <path d="M3 8h14M7 2v4M13 2v4" />
-            </svg>}
+            icon="📅"
           />
-
           <StatCard
             label="Present"
             value={stats.present}
-            subtitle="Attendance days"
             accent="green"
-            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
-              <path d="M4 10.5l4 4 8-8" />
-            </svg>}
+            icon="✅"
           />
-
           <StatCard
             label="Late Days"
             value={stats.late}
-            subtitle="Times late"
             accent="amber"
-            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
-              <circle cx="10" cy="10" r="7" />
-              <path d="M10 6v4l2.5 2.5" />
-            </svg>}
+            icon="⏰"
           />
-
           <StatCard
             label="Late Minutes"
             value={stats.total_late_minutes}
-            subtitle="Total minutes"
             accent="red"
-            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
-              <circle cx="10" cy="10" r="7" />
-              <path d="M10 5v5l3 2" />
-            </svg>}
+            icon="⏱️"
           />
         </section>
 
@@ -230,34 +238,37 @@ export default function UserDashboard() {
               <h2>Monthly Attendance Rate</h2>
               <p>{attendanceMessage}</p>
             </div>
-
             <strong>{attendanceRate}%</strong>
           </div>
 
           <div className={styles.rateTrack}>
             <div
               className={styles.rateFill}
-              style={{ width: `${attendanceRate}%` }}
+              style={{
+                width: `${attendanceRate}%`,
+              }}
             />
           </div>
         </section>
 
         {/* TIME */}
         <section className={styles.timeSection}>
-          <h2 className={styles.sectionTitle}>Time Monitoring</h2>
+          <h2 className={styles.sectionTitle}>
+            Time Monitoring
+          </h2>
           <TimeInOut />
         </section>
 
         {/* RECENT */}
         <section className={styles.recentSection}>
-          <h2 className={styles.sectionTitle}>Recent Attendance</h2>
+          <h2 className={styles.sectionTitle}>
+            Recent Attendance
+          </h2>
 
           {loading ? (
-            <div>Loading attendance records...</div>
+            <div>Loading...</div>
           ) : error ? (
             <div>{error}</div>
-          ) : recentAttendance.length === 0 ? (
-            <div>No attendance records found.</div>
           ) : (
             <table className={styles.table}>
               <thead>
@@ -270,17 +281,26 @@ export default function UserDashboard() {
               </thead>
 
               <tbody>
-                {recentAttendance.map((record) => (
-                  <tr key={record.id}>
-                    <td>{safeFormat(record.date, "MMM dd, yyyy")}</td>
-                    <td>{safeFormat(record.time_in, "hh:mm a")}</td>
+                {recentAttendance.map((r) => (
+                  <tr key={r.id}>
                     <td>
-                      {record.time_out
-                        ? safeFormat(record.time_out, "hh:mm a")
+                      {safeFormat(r.date, "MMM dd, yyyy")}
+                    </td>
+                    <td>
+                      {safeFormat(r.time_in, "hh:mm a")}
+                    </td>
+                    <td>
+                      {r.time_out
+                        ? safeFormat(
+                            r.time_out,
+                            "hh:mm a"
+                          )
                         : "—"}
                     </td>
-                    <td className={statusClass(record.status)}>
-                      {record.status}
+                    <td
+                      className={statusClass(r.status)}
+                    >
+                      {r.status}
                     </td>
                   </tr>
                 ))}
@@ -288,7 +308,6 @@ export default function UserDashboard() {
             </table>
           )}
         </section>
-
       </div>
     </div>
   );

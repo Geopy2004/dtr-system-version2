@@ -8,19 +8,32 @@ import UserDashboard from "./pages/users/userdashboard";
 function App() {
   return (
     <Routes>
-      {/* Root */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      {/* ROOT */}
+      <Route
+        path="/"
+        element={<Navigate to="/login" replace />}
+      />
 
-      {/* Auth */}
+      {/* AUTH */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      {/* Dashboards */}
-      <Route path="/admin/dashboard" element={<AdminDashboard />} />
-      <Route path="/user/dashboard" element={<UserDashboard />} />
+      {/* DASHBOARDS */}
+      <Route
+        path="/admin/dashboard"
+        element={<AdminDashboard />}
+      />
 
-      {/* fallback */}
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route
+        path="/user/dashboard"
+        element={<UserDashboard />}
+      />
+
+      {/* FALLBACK */}
+      <Route
+        path="*"
+        element={<Navigate to="/login" replace />}
+      />
     </Routes>
   );
 }
