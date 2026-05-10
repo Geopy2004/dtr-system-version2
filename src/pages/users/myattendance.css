@@ -1,177 +1,387 @@
-/* =========================
-   PAGE WRAPPER
-========================= */
-
-.my-attendance {
-  padding: 24px;
-  background: #f6f7fb;
+.layout {
+  display: flex;
   min-height: 100vh;
-  font-family: Arial, sans-serif;
+  background: #f5f7fa;
 }
 
-.my-attendance h2 {
-  font-size: 1.6rem;
+.mainContent {
+  flex: 1;
+  margin-left: 280px;
+  padding: 2rem;
+  overflow-x: auto;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header */
+.header {
+  margin-bottom: 2rem;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 600;
+  color: #1a202c;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  color: #718096;
+  font-size: 1rem;
+}
+
+/* Today's Attendance Card */
+.todayCard {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  color: white;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.todayHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.todayHeader h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.todayDate {
+  font-size: 0.875rem;
+  opacity: 0.9;
+}
+
+.todayInfo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.todayTime {
+  display: flex;
+  gap: 2rem;
+}
+
+.timeItem {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.timeLabel {
+  font-size: 0.875rem;
+  opacity: 0.9;
+}
+
+.timeItem strong {
+  font-size: 1.25rem;
+}
+
+.todayStatus {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.statusBadge {
+  padding: 0.25rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.todayEmpty {
+  text-align: center;
+  padding: 1rem;
+}
+
+.todayEmpty p {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+.todayEmpty small {
+  opacity: 0.8;
+  font-size: 0.875rem;
+}
+
+/* Statistics Grid */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.statBox {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s;
+}
+
+.statBox:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.statValue {
+  font-size: 2rem;
   font-weight: 700;
-  margin-bottom: 20px;
-  color: #1f2937;
+  color: #2d3748;
+  margin-bottom: 0.5rem;
 }
 
-/* =========================
-   FILTER SECTION
-========================= */
+.statLabel {
+  font-size: 0.875rem;
+  color: #718096;
+}
+
+.statPresent .statValue {
+  color: #48bb78;
+}
+
+.statLate .statValue {
+  color: #ed8936;
+}
+
+.statAbsent .statValue {
+  color: #f56565;
+}
+
+/* Rate Card */
+.rateCard {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.rateHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.rateHeader h3 {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #4a5568;
+  margin: 0;
+}
+
+.ratePercent {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #667eea;
+}
+
+.rateTrack {
+  height: 0.5rem;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.rateFill {
+  height: 100%;
+  background: linear-gradient(90deg, #48bb78, #38a169);
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+/* Controls */
+.controls {
+  margin-bottom: 2rem;
+}
+
+.monthNavigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.navButton {
+  padding: 0.5rem 1rem;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.875rem;
+}
+
+.navButton:hover {
+  background: #f7fafc;
+  border-color: #cbd5e0;
+}
+
+.currentMonth {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #2d3748;
+}
 
 .filters {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 1rem;
   flex-wrap: wrap;
-
-  background: #ffffff;
-  padding: 16px;
-  border-radius: 14px;
-
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
-  margin-bottom: 20px;
 }
 
-.filters input {
-  padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
+.searchInput {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.searchInput:focus {
   outline: none;
-  font-size: 0.95rem;
-  transition: 0.2s;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-.filters input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-}
-
-.filters span {
-  font-weight: 600;
-  color: #6b7280;
-}
-
-/* BUTTONS */
-
-.filters button {
-  padding: 10px 14px;
-  border: none;
-  border-radius: 10px;
+.filterSelect {
+  padding: 0.5rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: white;
   cursor: pointer;
-  font-weight: 600;
-  transition: 0.2s ease;
+  font-size: 0.875rem;
 }
 
-/* Filter button */
-.filters button:nth-of-type(1) {
-  background: #3b82f6;
-  color: white;
+/* Table */
+.tableWrapper {
+  background: white;
+  border-radius: 0.75rem;
+  overflow-x: auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.filters button:nth-of-type(1):hover {
-  background: #2563eb;
-}
-
-/* Export button */
-.filters button:nth-of-type(2) {
-  background: #10b981;
-  color: white;
-}
-
-.filters button:nth-of-type(2):hover {
-  background: #059669;
-}
-
-/* =========================
-   TABLE WRAPPER
-========================= */
-
-table {
+.table {
   width: 100%;
   border-collapse: collapse;
-  background: #ffffff;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
 }
 
-/* HEADER */
-
-thead {
-  background: #111827;
-  color: white;
+.table thead {
+  background: #f7fafc;
+  border-bottom: 2px solid #e2e8f0;
 }
 
-thead th {
-  padding: 14px;
+.table th {
+  padding: 1rem;
   text-align: left;
-  font-size: 0.9rem;
   font-weight: 600;
+  color: #4a5568;
+  font-size: 0.875rem;
 }
 
-/* ROWS */
-
-tbody td {
-  padding: 14px;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 0.92rem;
-  color: #374151;
+.table td {
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  color: #2d3748;
+  font-size: 0.875rem;
 }
 
-tbody tr:hover {
-  background: #f3f4f6;
-  transition: 0.2s;
+.table tr:last-child td {
+  border-bottom: none;
 }
 
-/* =========================
-   STATUS COLORS
-========================= */
-
-.status-present {
-  color: #16a34a;
-  font-weight: 700;
+.table tbody tr:hover {
+  background: #f7fafc;
 }
 
-.status-late {
-  color: #f59e0b;
-  font-weight: 700;
+/* Status Styles */
+.statusPresent {
+  background: #c6f6d5;
+  color: #22543d;
 }
 
-.status-absent {
-  color: #dc2626;
-  font-weight: 700;
+.statusLate {
+  background: #feebc8;
+  color: #7b341e;
 }
 
-/* =========================
-   LOADING STATE
-========================= */
-
-.my-attendance > div {
-  font-size: 1rem;
-  color: #6b7280;
-  padding: 20px;
+.statusAbsent {
+  background: #fed7d7;
+  color: #742a2a;
 }
 
-/* =========================
-   MOBILE RESPONSIVE
-========================= */
+.statusHalfDay {
+  background: #e9d8fd;
+  color: #44337a;
+}
 
+/* Loading and Error States */
+.loadingState, .errorState {
+  text-align: center;
+  padding: 3rem;
+  background: white;
+  border-radius: 0.75rem;
+  color: #718096;
+}
+
+.errorState {
+  color: #f56565;
+}
+
+.noData {
+  text-align: center;
+  padding: 3rem;
+  color: #a0aec0;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
+  .mainContent {
+    margin-left: 0;
+    padding: 1rem;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .todayInfo {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .todayTime {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .monthNavigation {
+    flex-direction: column;
+  }
+
+  .navButton {
+    width: 100%;
+  }
+
   .filters {
     flex-direction: column;
-    align-items: stretch;
-  }
-
-  table {
-    display: block;
-    overflow-x: auto;
-    white-space: nowrap;
-  }
-
-  thead th,
-  tbody td {
-    padding: 12px;
   }
 }
