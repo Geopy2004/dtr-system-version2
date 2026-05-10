@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { attendanceAPI } from '../../../services/api';
+import { attendanceAPI } from '../../../services/api'; // ✅ single correct import
 import { format } from 'date-fns';
 import "./myattendance.css";
+
 export default function MyAttendance() {
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,7 +16,7 @@ export default function MyAttendance() {
   });
 
   // =========================
-  // FETCH ATTENDANCE (SAFE EFFECT)
+  // FETCH ATTENDANCE
   // =========================
   useEffect(() => {
     const loadAttendance = async () => {
@@ -55,7 +56,7 @@ export default function MyAttendance() {
         : '-',
       record.status,
       record.late_minutes,
-      record.overtime,
+      record.overtime ?? '-',
     ]);
 
     const csvContent = [headers, ...csvData]
@@ -105,7 +106,6 @@ export default function MyAttendance() {
           }
         />
 
-        {/* triggers refetch via filters */}
         <button onClick={() => setFilters({ ...filters })}>
           Filter
         </button>
@@ -127,36 +127,36 @@ export default function MyAttendance() {
         </thead>
 
         <tbody>
-          {attendance.map((record) => (
-            <tr key={record.id}>
-              <td>
-                {format(new Date(record.date), 'MMM dd, yyyy')}
-              </td>
-
-              <td>
-                {format(
-                  new Date(record.time_in),
-                  'hh:mm:ss a'
-                )}
-              </td>
-
-              <td>
-                {record.time_out
-                  ? format(
-                      new Date(record.time_out),
-                      'hh:mm:ss a'
-                    )
-                  : '-'}
-              </td>
-
-              <td className={`status-${record.status}`}>
-                {record.status}
-              </td>
-
-              <td>{record.late_minutes}</td>
-              <td>{record.overtime}</td>
+          {attendance.length === 0 ? (
+            <tr>
+              <td colSpan="6">No attendance records found.</td>
             </tr>
-          ))}
+          ) : (
+            attendance.map((record) => (
+              <tr key={record.id}>
+                <td>
+                  {format(new Date(record.date), 'MMM dd, yyyy')}
+                </td>
+
+                <td>
+                  {format(new Date(record.time_in), 'hh:mm:ss a')}
+                </td>
+
+                <td>
+                  {record.time_out
+                    ? format(new Date(record.time_out), 'hh:mm:ss a')
+                    : '-'}
+                </td>
+
+                <td className={`status-${record.status}`}>
+                  {record.status}
+                </td>
+
+                <td>{record.late_minutes ?? '-'}</td>
+                <td>{record.overtime ?? '-'}</td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>

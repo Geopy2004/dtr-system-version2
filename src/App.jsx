@@ -1,15 +1,26 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from "react-router-dom";
+
 import Login from "./pages/auth/login";
+import Register from "./pages/auth/register";
 import AdminDashboard from "./pages/admin/admindashboard";
-import UserDashboard from "./pages/users/userdashboard";  
+import UserDashboard from "./pages/users/userdashboard";
+
 function App() {
-  console.log('App is rendering');
-  
   return (
     <Routes>
-      <Route path="/" element={<Login />} />
+      {/* Root */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
+
+      {/* Auth */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+
+      {/* Dashboards */}
       <Route path="/admin/dashboard" element={<AdminDashboard />} />
       <Route path="/user/dashboard" element={<UserDashboard />} />
+
+      {/* fallback */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }

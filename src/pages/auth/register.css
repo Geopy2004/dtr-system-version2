@@ -1,0 +1,242 @@
+/* ───────────── GLOBAL RESET ───────────── */
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+/* ───────────── BODY LAYOUT ───────────── */
+body {
+  font-family: Inter, system-ui, sans-serif;
+
+  background: radial-gradient(circle at top, #2b2f3a, #17181c);
+  color: #e5e7eb;
+
+  min-height: 100vh;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  padding: 20px; /* prevents cut/overflow issues */
+  overflow-x: hidden;
+}
+
+/* ───────────── AUTH CARD ───────────── */
+.auth-card {
+  width: 440px;
+  max-width: 100%;
+
+  padding: 30px;
+  border-radius: 16px;
+
+  background: rgba(43, 45, 49, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+
+  overflow: hidden;
+
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+/* ───────────── BRAND ───────────── */
+.auth-brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.auth-app-name {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #7c83ff;
+  text-shadow: 0 0 20px rgba(124, 131, 255, 0.4);
+}
+
+/* ───────────── HEADER ───────────── */
+.auth-heading {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.auth-heading h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.auth-heading p {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #9aa0a6;
+}
+
+/* ───────────── FORM ───────────── */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field-row {
+  display: flex;
+  gap: 10px;
+}
+
+/* ───────────── INPUTS ───────────── */
+input,
+select {
+  width: 100%;
+  max-width: 100%;
+
+  padding: 11px 12px;
+  border-radius: 10px;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(20, 22, 26, 0.8);
+
+  color: #fff;
+  outline: none;
+
+  transition: 0.25s ease;
+}
+
+input:focus,
+select:focus {
+  border-color: #7c83ff;
+  box-shadow: 0 0 0 3px rgba(124, 131, 255, 0.15);
+}
+
+/* ───────────── PASSWORD FIELD ───────────── */
+.password-field {
+  position: relative;
+  width: 100%;
+}
+
+.password-field input {
+  width: 100%;
+  padding-right: 44px; /* space for eye icon */
+}
+
+/* Eye icon */
+.toggle-eye {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+
+  cursor: pointer;
+  font-size: 16px;
+  opacity: 0.6;
+
+  transition: 0.2s ease;
+  user-select: none;
+}
+
+.toggle-eye:hover {
+  opacity: 1;
+  transform: translateY(-50%) scale(1.1);
+}
+
+/* ───────────── PASSWORD STRENGTH ───────────── */
+.strength-label {
+  font-size: 12px;
+  margin-top: -8px;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.strength-label.weak { color: #ff4d4d; }
+.strength-label.fair { color: #ffb84d; }
+.strength-label.good { color: #4dd2ff; }
+.strength-label.strong { color: #4dff88; }
+
+/* ───────────── BUTTON ───────────── */
+button {
+  margin-top: 8px;
+  padding: 11px;
+
+  border: none;
+  border-radius: 10px;
+
+  background: linear-gradient(135deg, #6c72ff, #5865f2);
+  color: white;
+
+  font-weight: 700;
+  cursor: pointer;
+
+  transition: 0.25s ease;
+
+  box-shadow: 0 10px 25px rgba(88, 101, 242, 0.25);
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 15px 30px rgba(88, 101, 242, 0.35);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ───────────── SWITCH LOGIN ───────────── */
+.auth-switch {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #9aa0a6;
+}
+
+.auth-switch a {
+  color: #7c83ff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.auth-switch a:hover {
+  text-decoration: underline;
+}
+
+/* ───────────── ANIMATION ───────────── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ───────────── MOBILE ───────────── */
+@media (max-width: 500px) {
+  body {
+    padding: 12px;
+  }
+
+  .auth-card {
+    padding: 22px;
+  }
+
+  .field-row {
+    flex-direction: column;
+  }
+
+  .auth-heading h2 {
+    font-size: 20px;
+  }
+}

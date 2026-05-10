@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
+
+/* ── Root ── */
+.auth-layout {
+  min-height: 100vh;
+  background: #060d1a;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Scrollable layer sits on top of bg ── */
+.auth-scroll {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  box-sizing: border-box;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 440px;
+  transition: max-width 0.35s ease;
+}
+
+.auth-container.wide {
+  max-width: 560px;
+}
+
+/* ── Background ── */
+.auth-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Subtle dot grid */
+.mesh-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Animated colour blobs */
+.mesh-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+}
+
+.b1 {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(59,130,246,0.18) 0%, transparent 70%);
+  top: -200px;
+  left: -150px;
+  animation: blobDrift 14s ease-in-out infinite alternate;
+}
+
+.b2 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(139,92,246,0.16) 0%, transparent 70%);
+  bottom: -180px;
+  right: -120px;
+  animation: blobDrift 18s ease-in-out infinite alternate-reverse;
+}
+
+.b3 {
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(6,182,212,0.10) 0%, transparent 70%);
+  top: 40%;
+  left: 55%;
+  transform: translate(-50%, -50%);
+  animation: blobDrift 22s ease-in-out infinite alternate;
+}
+
+@keyframes blobDrift {
+  0%   { transform: translate(0, 0)     scale(1);   }
+  50%  { transform: translate(40px, 30px) scale(1.08); }
+  100% { transform: translate(-20px, 50px) scale(0.95); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .auth-scroll { padding: 24px 12px; }
+}

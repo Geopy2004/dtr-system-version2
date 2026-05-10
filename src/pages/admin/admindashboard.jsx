@@ -1,119 +1,118 @@
-import { useState, useEffect } from 'react';
-import { adminAPI } from '../../services/api';
+import { useState, useEffect } from "react";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import AttendanceTable from "../../components/admin/attendancetable";
+import { attendanceAPI, profileAPI } from "../../services/api";
 import "./admindashboard.css";
-export default function AdminDashboard() {
-  const [stats, setStats] = useState({
-    total_users: 0,
-    active_users: 0,
-    today_attendance: {
-      total_checked_in: 0,
-      present: 0,
-      late: 0,
-      half_day: 0,
-    },
-    today_logged_in: 0,
-  });
 
-  const [recentAttendance, setRecentAttendance] = useState([]);
+const AdminDashboard = () => {
+  const [records, setRecords] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ======================
-  // LOAD DASHBOARD DATA
-  // ======================
+  const [dateRange, setDateRange] = useState({
+    start: format(startOfMonth(new Date()), "yyyy-MM-dd"),
+    end: format(endOfMonth(new Date()), "yyyy-MM-dd"),
+  });
+
+  // ✅ FIX: no separate fetchData function
   useEffect(() => {
-    const loadDashboard = async () => {
+    const loadData = async () => {
+      setLoading(true);
+
       try {
-        const [statsResult, attendanceResult] = await Promise.all([
-          adminAPI.getDashboardStats(),
-          adminAPI.getAllAttendance({ limit: 10 }),
+        const [recs, usrs] = await Promise.all([
+          attendanceAPI.getAllRecords(dateRange.start, dateRange.end),
+          profileAPI.getAllUsers(),
         ]);
 
-        setStats(statsResult);
-        setRecentAttendance(attendanceResult?.attendance || []);
-      } catch (error) {
-        console.error('Dashboard load error:', error);
+        setRecords(recs || []);
+        setUsers(usrs || []);
+      } catch (err) {
+        console.error("Error fetching admin data:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    loadDashboard();
-  }, []);
+    loadData();
+  }, [dateRange.start, dateRange.end]);
 
-  if (loading) return <div>Loading dashboard...</div>;
+  const totalHours = records.reduce(
+    (sum, r) => sum + parseFloat(r.hours_worked || 0),
+    0
+  );
+
+  const completeRecords = records.filter(
+    (r) => r.time_in && r.time_out
+  ).length;
+
+  // ❌ FIX: remove unused variable warning
+  // const incompleteRecords = records.filter((r) => r.time_in && !r.time_out).length;
+
+  const stats = [
+    { label: "Total Employees", value: users.length, icon: "👥", color: "blue" },
+    { label: "Total Records", value: records.length, icon: "📋", color: "indigo" },
+    { label: "Complete Shifts", value: completeRecords, icon: "✅", color: "green" },
+    { label: "Total Hours", value: `${totalHours.toFixed(1)}h`, icon: "⏱", color: "purple" },
+  ];
 
   return (
-    <div className="admin-dashboard">
-      <h1>Admin Dashboard</h1>
-
-      {/* ================= STATS ================= */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <h3>Total Users</h3>
-          <p className="stat-number">{stats.total_users}</p>
-          <span className="stat-label">
-            Active: {stats.active_users}
-          </span>
+    <div className="admin-dash">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Admin Dashboard</h1>
+          <p className="page-subtitle">
+            Monitor employee attendance and time records
+          </p>
         </div>
 
-        <div className="stat-card">
-          <h3>Today's Check-ins</h3>
-          <p className="stat-number">
-            {stats.today_attendance.total_checked_in}
-          </p>
-          <div className="stat-details">
-            <span>Present: {stats.today_attendance.present}</span>
-            <span>Late: {stats.today_attendance.late}</span>
-            <span>Half Day: {stats.today_attendance.half_day}</span>
+        <div className="date-filters">
+          <div className="filter-group">
+            <label>From</label>
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) =>
+                setDateRange((prev) => ({ ...prev, start: e.target.value }))
+              }
+            />
           </div>
-        </div>
 
-        <div className="stat-card">
-          <h3>Today's Logins</h3>
-          <p className="stat-number">
-            {stats.today_logged_in}
-          </p>
+          <div className="filter-group">
+            <label>To</label>
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) =>
+                setDateRange((prev) => ({ ...prev, end: e.target.value }))
+              }
+            />
+          </div>
         </div>
       </div>
 
-      {/* ================= RECENT ACTIVITY ================= */}
-      <div className="recent-activity">
-        <h3>Recent Attendance Activity</h3>
+      <div className="stats-grid">
+        {stats.map(({ label, value, icon, color }) => (
+          <div key={label} className={`stat-card color-${color}`}>
+            <div className="stat-icon">{icon}</div>
+            <div className="stat-info">
+              <span className="stat-value">{value}</span>
+              <span className="stat-label">{label}</span>
+            </div>
+          </div>
+        ))}
+      </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Employee</th>
-              <th>Department</th>
-              <th>Date</th>
-              <th>Time In</th>
-              <th>Status</th>
-            </tr>
-          </thead>
+      <div className="section-card">
+        <div className="section-header">
+          <h2 className="section-title">Attendance Records</h2>
+          <span>{records.length} records</span>
+        </div>
 
-          <tbody>
-            {recentAttendance.map((record) => (
-              <tr key={record.id}>
-                <td>{record.profiles?.name}</td>
-                <td>{record.profiles?.department}</td>
-                <td>
-                  {record.date
-                    ? new Date(record.date).toLocaleDateString()
-                    : '-'}
-                </td>
-                <td>
-                  {record.time_in
-                    ? new Date(record.time_in).toLocaleTimeString()
-                    : '-'}
-                </td>
-                <td className={`status-${record.status}`}>
-                  {record.status}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <AttendanceTable records={records} loading={loading} />
       </div>
     </div>
   );
-}
+};
+
+export default AdminDashboard;

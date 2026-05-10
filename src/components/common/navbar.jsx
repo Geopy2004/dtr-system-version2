@@ -1,53 +1,58 @@
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import toast from 'react-hot-toast';
+import { useAuth } from "../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+import "./Navbar.css";
 
-export default function Navbar() {
-  const { user, userRole, logout } = useAuth();
+const Navbar = ({ onToggleSidebar }) => {
+  const { profile, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
       await logout();
-      toast.success('Logged out successfully');
-      navigate('/login');
+      toast.success("Logged out successfully");
+      navigate("/login");
     } catch {
-      toast.error('Logout failed');
+      toast.error("Failed to logout");
     }
   };
 
+  const initials = profile?.full_name
+    ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    : "U";
+
   return (
     <nav className="navbar">
-      {/* LEFT - BRAND */}
       <div className="navbar-left">
-        <div className="brand">
-          <div className="logo">📊</div>
-          <h2>Attendance System</h2>
+        <button className="hamburger" onClick={onToggleSidebar} aria-label="Toggle sidebar">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <div className="navbar-brand">
+          <span className="brand-icon">⏱</span>
+          <span className="brand-name">DTR System</span>
         </div>
       </div>
-
-      {/* RIGHT - USER INFO */}
       <div className="navbar-right">
-        <div className="user-box">
-          <div className="user-avatar">
-            {user?.email?.charAt(0).toUpperCase()}
-          </div>
-
+        <div className="user-info">
+          <div className="user-avatar">{initials}</div>
           <div className="user-details">
-            <span className="user-name">
-              {user?.user_metadata?.name || user?.email}
-            </span>
-
-            <span className={`user-role ${userRole}`}>
-              {userRole}
-            </span>
+            <span className="user-name">{profile?.full_name || "User"}</span>
+            <span className="user-role">{profile?.role || "employee"}</span>
           </div>
         </div>
-
-        <button onClick={handleLogout} className="logout-btn">
+        <button className="logout-btn" onClick={handleLogout}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
           Logout
         </button>
       </div>
     </nav>
   );
-}
+};
+
+export default Navbar;

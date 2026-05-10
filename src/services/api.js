@@ -1,104 +1,175 @@
 import { supabase } from "./supabase";
 
-// 🔥 FIXED: backend port (NOT 5173)
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-// ======================
-// GET SUPABASE TOKEN
-// ======================
-const getToken = async () => {
-  const { data, error } = await supabase.auth.getSession();
+// Auth API
+export const authAPI = {
+  async login(email, password) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    return data;
+  },
 
-  if (error) {
-    console.error("Session error:", error);
-    return null;
-  }
+  async logout() {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  },
 
-  return data?.session?.access_token || null;
+  async getSession() {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return data.session;
+  },
+
+  async getCurrentUser() {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    return data.user;
+  },
 };
 
-// ======================
-// BASE REQUEST
-// ======================
-const apiRequest = async (endpoint, options = {}) => {
-  const token = await getToken();
+// Profile API
+export const profileAPI = {
+  async getProfile(userId) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    if (error) throw error;
+    return data;
+  },
 
-  const headers = {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
-    ...options.headers,
-  };
+  async updateProfile(userId, updates) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .update(updates)
+      .eq("id", userId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  async getAllUsers() {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("full_name");
+    if (error) throw error;
+    return data;
+  },
 
-  let data;
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
+  async createUser(email, password, profileData) {
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+    if (authError) throw authError;
 
-  if (!response.ok) {
-    console.log("API ERROR:", data);
-    throw new Error(data?.message || "Request failed");
-  }
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert([{ id: authData.user.id, email, ...profileData }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
 
-  return data;
+  async deleteUser(userId) {
+    const { error } = await supabase.from("profiles").delete().eq("id", userId);
+    if (error) throw error;
+  },
 };
 
-// ======================
-// ATTENDANCE API
-// ======================
+// Attendance API
 export const attendanceAPI = {
-  timeIn: (location = "", notes = "") =>
-    apiRequest("/attendance/timein", {
-      method: "POST",
-      body: JSON.stringify({ location, notes }),
-    }),
+  async timeIn(userId) {
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
 
-  timeOut: () =>
-    apiRequest("/attendance/timeout", {
-      method: "POST",
-    }),
+    const { data: existing } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("date", today)
+      .maybeSingle();
 
-  getMyAttendance: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(`/attendance/my-attendance?${query}`);
-  },
-};
+    if (existing) throw new Error("Already timed in today.");
 
-// ======================
-// ADMIN API (COMPLETE)
-// ======================
-export const adminAPI = {
-  getAllUsers: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(`/admin/users?${query}`);
+    const { data, error } = await supabase
+      .from("attendance")
+      .insert([{ user_id: userId, date: today, time_in: now.toISOString() }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
-  updateUser: (id, data) =>
-    apiRequest(`/admin/users/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
+  async timeOut(userId) {
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
 
-  deleteUser: (id) =>
-    apiRequest(`/admin/users/${id}`, {
-      method: "DELETE",
-    }),
+    const { data: existing, error: fetchError } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("date", today)
+      .maybeSingle();
 
-  getAllAttendance: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(`/admin/attendance?${query}`);
+    if (fetchError) throw fetchError;
+    if (!existing) throw new Error("No time-in record found for today.");
+    if (existing.time_out) throw new Error("Already timed out today.");
+
+    const timeIn = new Date(existing.time_in);
+    const hoursWorked = ((now - timeIn) / 1000 / 60 / 60).toFixed(2);
+
+    const { data, error } = await supabase
+      .from("attendance")
+      .update({ time_out: now.toISOString(), hours_worked: hoursWorked })
+      .eq("id", existing.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
-  getDashboardStats: () =>
-    apiRequest("/admin/dashboard-stats"),
+  async getTodayRecord(userId) {
+    const today = new Date().toISOString().split("T")[0];
+    const { data, error } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("date", today)
+      .maybeSingle();
 
-  getUserLogs: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(`/admin/logs?${query}`);
+    if (error) throw error;
+    return data;
+  },
+
+  async getRecords(userId, startDate, endDate) {
+    const { data, error } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", userId)
+      .gte("date", startDate)
+      .lte("date", endDate)
+      .order("date", { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getAllRecords(startDate, endDate) {
+    const { data, error } = await supabase
+      .from("attendance")
+      .select("*, profiles(full_name, email, department)")
+      .gte("date", startDate)
+      .lte("date", endDate)
+      .order("date", { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   },
 };

@@ -1,70 +1,66 @@
-  import { useState, useEffect } from 'react';
-  import { supabase } from '../services/supabase';
-  import { authAPI } from '../services/api';
-  import { AuthContext } from './AuthContext';
+import { useState, useEffect } from "react";
+import { AuthContext } from "./AuthContext";
+import { supabase } from "../services/supabase";
 
-  export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [userRole, setUserRole] = useState('user');
-    const [loading, setLoading] = useState(true);
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-      // Get initial session
-      const initSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
+  const fetchProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+      if (error) throw error;
+      setProfile(data);
+    } catch (err) {
+      console.error("Error fetching profile:", err);
+    }
+  };
 
-        if (session?.user) {
-          setUser(session.user);
-          setUserRole(session.user.user_metadata?.role || 'user');
-        }
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) fetchProfile(session.user.id);
+      setLoading(false);
+    });
 
-        setLoading(false);
-      };
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        setProfile(null);
+      }
+      setLoading(false);
+    });
 
-      initSession();
+    return () => subscription.unsubscribe();
+  }, []);
 
-      // Listen auth changes
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, session) => {
-        setUser(session?.user || null);
-        setUserRole(session?.user?.user_metadata?.role || 'user');
-        setLoading(false);
-      });
+  const login = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    return data;
+  };
 
-      return () => subscription.unsubscribe();
-    }, []);
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    setUser(null);
+    setProfile(null);
+  };
 
-    // LOGIN
-    const login = async (email, password) => {
-      const data = await authAPI.login(email, password);
+  const isAdmin = profile?.role === "admin";
 
-      setUser(data.user);
-      setUserRole(data.user?.user_metadata?.role || 'user');
-
-      return data;
-    };
-
-    // LOGOUT
-    const logout = async () => {
-      await authAPI.logout();
-      setUser(null);
-      setUserRole('user');
-    };
-
-    return (
-      <AuthContext.Provider
-        value={{
-          user,
-          userRole,
-          loading,
-          login,
-          logout,
-          isAdmin: userRole === 'admin',
-          isUser: userRole === 'user',
-        }}
-      >
-        {children}
-      </AuthContext.Provider>
-    );
-  };  
+  return (
+    <AuthContext.Provider value={{ user, profile, loading, login, logout, isAdmin }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};

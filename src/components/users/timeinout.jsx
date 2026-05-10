@@ -10,7 +10,7 @@ export default function TimeInOut() {
   const [notes, setNotes] = useState("");
 
   // ─────────────────────────────
-  // FETCH ATTENDANCE (STABLE FUNCTION)
+  // FETCH ATTENDANCE
   // ─────────────────────────────
   const fetchTodayAttendance = useCallback(async () => {
     try {
@@ -26,19 +26,19 @@ export default function TimeInOut() {
       const attendance =
         result?.attendance?.[0] || result?.data?.[0] || null;
 
-      setTodayAttendance(attendance);
+      return attendance; // ✅ return value, don't setState here
     } catch (error) {
       console.error("Fetch error:", error);
       toast.error("Failed to load attendance");
+      return null;
     }
   }, []);
 
-  // ─────────────────────────────
-  // INIT FETCH (FIXES ESLINT WARNING)
-  // ─────────────────────────────
+  // ✅ FIXED: setState inside .then() callback, not synchronously in effect
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchTodayAttendance();
+    fetchTodayAttendance().then((attendance) => {
+      setTodayAttendance(attendance);
+    });
   }, [fetchTodayAttendance]);
 
   // ─────────────────────────────
@@ -48,12 +48,13 @@ export default function TimeInOut() {
     setLoading(true);
 
     try {
-      await attendanceAPI.timeIn(notes);
+      await attendanceAPI.timeIn("", notes);
 
       toast.success("Time in successful!");
 
       setNotes("");
-      await fetchTodayAttendance();
+      const updated = await fetchTodayAttendance();
+      setTodayAttendance(updated);
     } catch (error) {
       console.error(error);
       toast.error(error?.message || "Time in failed");
@@ -73,7 +74,8 @@ export default function TimeInOut() {
 
       toast.success("Time out successful!");
 
-      await fetchTodayAttendance();
+      const updated = await fetchTodayAttendance();
+      setTodayAttendance(updated);
     } catch (error) {
       console.error(error);
       toast.error(error?.message || "Time out failed");

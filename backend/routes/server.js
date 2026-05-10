@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import attendanceRoutes from "./routes/attendance.js";
+import attendanceRoutes from "./attendance.js";
 
 dotenv.config();
 
@@ -11,7 +11,7 @@ const app = express();
 // MIDDLEWARE
 // ======================
 app.use(cors({
-  origin: "http://localhost:5174", // ⚠️ IMPORTANT (your Vite port)
+  origin: "http://localhost", // ⚠️ IMPORTANT (your Vite port)
   credentials: true
 }));
 
@@ -35,3 +35,4 @@ app.get("/", (req, res) => {
 app.listen(5000, () => {
   console.log("Server running on http://localhost:5000");
 });
+

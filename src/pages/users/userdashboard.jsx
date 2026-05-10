@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-
-import Navbar from "../../components/layout/navbar";
 import TimeInOut from "../../components/users/timeinout";
+import Sidebar from "../../components/layout/sidebar";
 import { attendanceAPI } from "../../services/api";
 import styles from "./UserDashboard.module.css";
 
@@ -13,9 +12,7 @@ import styles from "./UserDashboard.module.css";
 function statusClass(status) {
   if (!status) return "";
 
-  const s = status.toLowerCase();
-
-  switch (s) {
+  switch (status.toLowerCase()) {
     case "present":
       return styles.statusPresent;
     case "late":
@@ -31,16 +28,12 @@ function statusClass(status) {
 }
 
 function safeFormat(value, fmt) {
-  try {
-    if (!value) return "—";
+  if (!value) return "—";
 
-    const date = new Date(value);
-    if (isNaN(date.getTime())) return "—";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "—";
 
-    return format(date, fmt);
-  } catch {
-    return "—";
-  }
+  return format(date, fmt);
 }
 
 // ─────────────────────────────────────────────
@@ -86,56 +79,41 @@ export default function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // ✅ REAL-TIME CLOCK STATE
   const [now, setNow] = useState(new Date());
 
   const today = useMemo(() => new Date(), []);
 
-  // ─────────────────────────────────────────────
-  // LIVE CLOCK UPDATE (EVERY SECOND)
-  // ─────────────────────────────────────────────
-
+  // LIVE CLOCK
   useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(new Date());
-    }, 1000);
-
+    const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // ─────────────────────────────────────────────
-  // FETCH DATA
-  // ─────────────────────────────────────────────
+  // DATE RANGE
+  const { startDate, endDate } = useMemo(() => {
+    const start = startOfMonth(new Date());
+    const end = endOfMonth(new Date());
 
+    return {
+      startDate: format(start, "yyyy-MM-dd"),
+      endDate: format(end, "yyyy-MM-dd"),
+    };
+  }, []);
+
+  // FETCH DATA
   useEffect(() => {
     async function loadDashboard() {
       try {
         setLoading(true);
         setError("");
 
-        const startDate = format(
-          startOfMonth(new Date()),
-          "yyyy-MM-dd"
-        );
-
-        const endDate = format(
-          endOfMonth(new Date()),
-          "yyyy-MM-dd"
-        );
-
         const [statsResult, recentResult] = await Promise.all([
-          attendanceAPI.getMyAttendance({
-            startDate,
-            endDate,
-          }),
-
-          attendanceAPI.getMyAttendance({
-            limit: 5,
-          }),
+          attendanceAPI.getMyAttendance({ startDate, endDate }),
+          attendanceAPI.getMyAttendance({ limit: 5 }),
         ]);
 
         setStats(
-          statsResult?.stats || {
+          statsResult?.stats ?? {
             total_days: 0,
             present: 0,
             late: 0,
@@ -143,7 +121,7 @@ export default function UserDashboard() {
           }
         );
 
-        setRecentAttendance(recentResult?.attendance || []);
+        setRecentAttendance(recentResult?.attendance ?? []);
       } catch (err) {
         console.error(err);
         setError("Failed to load dashboard data.");
@@ -153,190 +131,165 @@ export default function UserDashboard() {
     }
 
     loadDashboard();
-  }, []);
+  }, [startDate, endDate]);
 
-  // ─────────────────────────────────────────────
   // COMPUTED
-  // ─────────────────────────────────────────────
+  const attendanceRate = useMemo(() => {
+    if (!stats.total_days) return 0;
+    return Math.round((stats.present / stats.total_days) * 100);
+  }, [stats]);
 
-  const attendanceRate =
-    stats.total_days > 0
-      ? Math.round((stats.present / stats.total_days) * 100)
-      : 0;
+  const attendanceMessage = useMemo(() => {
+    if (attendanceRate >= 90) return "Excellent attendance";
+    if (attendanceRate >= 75) return "Good attendance";
+    return "Needs improvement";
+  }, [attendanceRate]);
 
-  const attendanceMessage =
-    attendanceRate >= 90
-      ? "Excellent attendance"
-      : attendanceRate >= 75
-      ? "Good attendance"
-      : "Needs improvement";
-
-  // ─────────────────────────────────────────────
   // UI
-  // ─────────────────────────────────────────────
-
   return (
-    <div className={styles.dashboard}>
+   <div className={styles.layout}>
 
-      <Navbar />
+    {/* SIDEBAR */}
+    <Sidebar />
 
-      {/* HEADER */}
-      <header className={styles.header}>
-        <div>
+      {/* MAIN CONTENT */}
+      <div className={styles.dashboard}>
 
-          {/* ✅ LIVE DATE + CLOCK */}
-          <p className={styles.headerDate}>
-            {format(now, "EEEE, MMMM d, yyyy")} •{" "}
-            <span className={styles.clock}>
-              {format(now, "hh:mm:ss a")}
-            </span>
-          </p>
-
-          <h1 className={styles.headerTitle}>
-            Welcome Back 👋
-          </h1>
-
-          <p className={styles.headerSubtitle}>
-            Here's your attendance overview for this month.
-          </p>
-        </div>
-
-        <div className={styles.headerMonth}>
-          {format(today, "MMMM yyyy")}
-        </div>
-      </header>
-
-      {/* STATS */}
-      <section className={styles.statsGrid}>
-        <StatCard
-          label="Total Days"
-          value={stats.total_days}
-          subtitle="Working days"
-          accent="default"
-          icon={
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
-              <rect x="3" y="4" width="14" height="13" rx="2" />
-              <path d="M3 8h14M7 2v4M13 2v4" />
-            </svg>
-          }
-        />
-
-        <StatCard
-          label="Present"
-          value={stats.present}
-          subtitle="Attendance days"
-          accent="green"
-          icon={
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
-              <path d="M4 10.5l4 4 8-8" />
-            </svg>
-          }
-        />
-
-        <StatCard
-          label="Late Days"
-          value={stats.late}
-          subtitle="Times late"
-          accent="amber"
-          icon={
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
-              <circle cx="10" cy="10" r="7" />
-              <path d="M10 6v4l2.5 2.5" />
-            </svg>
-          }
-        />
-
-        <StatCard
-          label="Late Minutes"
-          value={stats.total_late_minutes}
-          subtitle="Total minutes"
-          accent="red"
-          icon={
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
-              <circle cx="10" cy="10" r="7" />
-              <path d="M10 5v5l3 2" />
-            </svg>
-          }
-        />
-      </section>
-
-      {/* RATE */}
-      <section className={styles.rateCard}>
-        <div className={styles.rateHeader}>
+        {/* HEADER */}
+        <header className={styles.header}>
           <div>
-            <h2>Monthly Attendance Rate</h2>
-            <p>{attendanceMessage}</p>
+            <p className={styles.headerDate}>
+              {format(now, "EEEE, MMMM d, yyyy")} •{" "}
+              <span className={styles.clock}>
+                {format(now, "hh:mm:ss a")}
+              </span>
+            </p>
+
+            <h1 className={styles.headerTitle}>Welcome Back 👋</h1>
+
+            <p className={styles.headerSubtitle}>
+              Here's your attendance overview for this month.
+            </p>
           </div>
 
-          <strong>{attendanceRate}%</strong>
-        </div>
+          <div className={styles.headerMonth}>
+            {format(today, "MMMM yyyy")}
+          </div>
+        </header>
 
-        <div className={styles.rateTrack}>
-          <div
-            className={styles.rateFill}
-            style={{ width: `${attendanceRate}%` }}
+        {/* STATS */}
+        <section className={styles.statsGrid}>
+          <StatCard
+            label="Total Days"
+            value={stats.total_days}
+            subtitle="Working days"
+            accent="default"
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
+              <rect x="3" y="4" width="14" height="13" rx="2" />
+              <path d="M3 8h14M7 2v4M13 2v4" />
+            </svg>}
           />
-        </div>
-      </section>
 
-      {/* TIME IN OUT */}
-      <section className={styles.timeSection}>
-        <h2 className={styles.sectionTitle}>
-          Time Monitoring
-        </h2>
+          <StatCard
+            label="Present"
+            value={stats.present}
+            subtitle="Attendance days"
+            accent="green"
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
+              <path d="M4 10.5l4 4 8-8" />
+            </svg>}
+          />
 
-        <TimeInOut />
-      </section>
+          <StatCard
+            label="Late Days"
+            value={stats.late}
+            subtitle="Times late"
+            accent="amber"
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
+              <circle cx="10" cy="10" r="7" />
+              <path d="M10 6v4l2.5 2.5" />
+            </svg>}
+          />
 
-      {/* RECENT */}
-      <section className={styles.recentSection}>
-        <h2 className={styles.sectionTitle}>
-          Recent Attendance
-        </h2>
+          <StatCard
+            label="Late Minutes"
+            value={stats.total_late_minutes}
+            subtitle="Total minutes"
+            accent="red"
+            icon={<svg viewBox="0 0 20 20" fill="none" stroke="currentColor">
+              <circle cx="10" cy="10" r="7" />
+              <path d="M10 5v5l3 2" />
+            </svg>}
+          />
+        </section>
 
-        {loading ? (
-          <div>Loading attendance records...</div>
-        ) : error ? (
-          <div>{error}</div>
-        ) : recentAttendance.length === 0 ? (
-          <div>No attendance records found.</div>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Time In</th>
-                <th>Time Out</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+        {/* RATE */}
+        <section className={styles.rateCard}>
+          <div className={styles.rateHeader}>
+            <div>
+              <h2>Monthly Attendance Rate</h2>
+              <p>{attendanceMessage}</p>
+            </div>
 
-            <tbody>
-              {recentAttendance.map((record) => (
-                <tr key={record.id}>
-                  <td>
-                    {safeFormat(record.date, "MMM dd, yyyy")}
-                  </td>
+            <strong>{attendanceRate}%</strong>
+          </div>
 
-                  <td>
-                    {safeFormat(record.time_in, "hh:mm a")}
-                  </td>
+          <div className={styles.rateTrack}>
+            <div
+              className={styles.rateFill}
+              style={{ width: `${attendanceRate}%` }}
+            />
+          </div>
+        </section>
 
-                  <td>
-                    {record.time_out
-                      ? safeFormat(record.time_out, "hh:mm a")
-                      : "—"}
-                  </td>
+        {/* TIME */}
+        <section className={styles.timeSection}>
+          <h2 className={styles.sectionTitle}>Time Monitoring</h2>
+          <TimeInOut />
+        </section>
 
-                  <td className={statusClass(record.status)}>
-                    {record.status}
-                  </td>
+        {/* RECENT */}
+        <section className={styles.recentSection}>
+          <h2 className={styles.sectionTitle}>Recent Attendance</h2>
+
+          {loading ? (
+            <div>Loading attendance records...</div>
+          ) : error ? (
+            <div>{error}</div>
+          ) : recentAttendance.length === 0 ? (
+            <div>No attendance records found.</div>
+          ) : (
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Time In</th>
+                  <th>Time Out</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+              </thead>
+
+              <tbody>
+                {recentAttendance.map((record) => (
+                  <tr key={record.id}>
+                    <td>{safeFormat(record.date, "MMM dd, yyyy")}</td>
+                    <td>{safeFormat(record.time_in, "hh:mm a")}</td>
+                    <td>
+                      {record.time_out
+                        ? safeFormat(record.time_out, "hh:mm a")
+                        : "—"}
+                    </td>
+                    <td className={statusClass(record.status)}>
+                      {record.status}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+      </div>
     </div>
   );
 }
