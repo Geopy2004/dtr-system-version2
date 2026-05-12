@@ -6,33 +6,35 @@ import attendanceRoutes from "./attendance.js";
 dotenv.config();
 
 const app = express();
+const port = Number(process.env.PORT || 5000);
+const allowedOrigins = (
+  process.env.CORS_ORIGIN || "http://localhost:5173,http://127.0.0.1:5173"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-// ======================
-// MIDDLEWARE
-// ======================
-app.use(cors({
-  origin: "http://localhost", // ⚠️ IMPORTANT (your Vite port)
-  credentials: true
-}));
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS blocked origin: ${origin}`));
+    },
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 
-// ======================
-// ROUTES
-// ======================
 app.use("/attendance", attendanceRoutes);
 
-// ======================
-// TEST ROUTE
-// ======================
-app.get("/", (req, res) => {
-  res.json({ message: "Backend is running ✔" });
+app.get("/", (_req, res) => {
+  res.json({ message: "Backend is running" });
 });
 
-// ======================
-// START SERVER
-// ======================
-app.listen(5000, () => {
-  console.log("Server running on http://localhost:5000");
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
 });
-

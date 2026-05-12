@@ -1,364 +1,471 @@
-/* ===========================
-   MY LOGS CONTAINER
-   =========================== */
-.mylogs-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-  background: #f8f9fa;
+:root {
+  --attendance-bg: #0b0d12;
+  --attendance-panel: #0f1117;
+  --attendance-panel-soft: #14161f;
+  --attendance-panel-elevated: #1a1d26;
+  --attendance-ink: #f0f0f5;
+  --attendance-muted: #b8b8cc;
+  --attendance-dim: #6b6b80;
+  --attendance-line: rgba(255, 255, 255, 0.06);
+  --attendance-line-strong: rgba(255, 255, 255, 0.1);
+  --attendance-accent: #6c63ff;
+  --attendance-accent-2: #a78bfa;
+  --attendance-green: #22c55e;
+  --attendance-amber: #f59e0b;
+  --attendance-red: #ef4444;
+  --attendance-accent-soft: rgba(108, 99, 255, 0.15);
+  --attendance-green-soft: rgba(34, 197, 94, 0.12);
+  --attendance-amber-soft: rgba(245, 158, 11, 0.12);
+  --attendance-red-soft: rgba(239, 68, 68, 0.12);
+  --attendance-gradient: linear-gradient(135deg, #6c63ff, #a78bfa);
+  --attendance-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+}
+
+.attendance-layout {
   min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(108, 99, 255, 0.14), transparent 360px),
+    var(--attendance-bg);
+  color: var(--attendance-ink);
 }
 
-/* ===========================
-   HEADER
-   =========================== */
-.logs-header {
-  margin-bottom: 30px;
-}
-
-.logs-header h2 {
-  font-size: 32px;
-  color: #1a1a1a;
-  margin-bottom: 8px;
-  font-weight: 600;
-}
-
-.logs-header .subtitle {
-  font-size: 16px;
-  color: #666;
-}
-
-/* ===========================
-   FILTER SECTION
-   =========================== */
-.filter-section {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 30px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.filter-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.filter-controls label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #495057;
-}
-
-.filter-select {
-  padding: 10px 14px;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  font-size: 14px;
-  background: white;
-  color: #495057;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 200px;
-}
-
-.filter-select:hover {
-  border-color: #adb5bd;
-}
-
-.filter-select:focus {
-  outline: none;
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
-}
-
-.log-count {
-  font-size: 14px;
-  color: #666;
-  white-space: nowrap;
-}
-
-.log-count strong {
-  color: #1a1a1a;
-  font-weight: 600;
-}
-
-/* ===========================
-   LOGS SECTION
-   =========================== */
-.logs-section {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-/* ===========================
-   LOGS TABLE
-   =========================== */
-.logs-table-wrapper {
-  overflow-x: auto;
-}
-
-.logs-table {
+.myattendance-container {
+  min-height: 100vh;
   width: 100%;
+  padding: 32px clamp(18px, 3vw, 44px);
+}
+
+.attendance-header,
+.attendance-overview-grid,
+.statistics-section,
+.history-section {
+  max-width: none;
+  margin: 0 auto;
+}
+
+.attendance-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.header-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 16px;
+  color: #ffffff;
+  background: var(--attendance-gradient);
+  box-shadow: 0 14px 24px rgba(108, 99, 255, 0.24);
+  font-size: 28px;
+}
+
+.attendance-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--attendance-accent-2);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.header-text h2 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.05;
+  letter-spacing: 0;
+  background: var(--attendance-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  color: var(--attendance-muted);
+  font-size: 15px;
+}
+
+.attendance-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(420px, 1.15fr) minmax(360px, 0.85fr);
+  gap: 22px;
+  align-items: stretch;
+  margin-bottom: 22px;
+}
+
+.timeinout-section {
+  min-width: 0;
+}
+
+.timeinout-section,
+.statistics-section {
+  height: 100%;
+}
+
+.statistics-section,
+.history-section {
+  background: var(--attendance-panel);
+  border: 1px solid var(--attendance-line);
+  border-radius: 18px;
+  box-shadow: var(--attendance-shadow);
+}
+
+.statistics-section {
+  padding: 22px;
+}
+
+.section-heading-row,
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.statistics-section h3,
+.history-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--attendance-ink);
+  font-size: 18px;
+}
+
+.section-icon {
+  color: var(--attendance-accent-2);
+}
+
+.section-pill,
+.current-month {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--attendance-accent-soft);
+  color: var(--attendance-accent-2);
+  border: 1px solid rgba(108, 99, 255, 0.28);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 96px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--attendance-line);
+  background: var(--attendance-panel-soft);
+}
+
+.stat-card.present {
+  background: var(--attendance-green-soft);
+  border-color: rgba(34, 197, 94, 0.28);
+}
+
+.stat-card.late {
+  background: var(--attendance-amber-soft);
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.stat-card.absent {
+  background: var(--attendance-red-soft);
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+.stat-card.complete {
+  background: var(--attendance-accent-soft);
+  border-color: rgba(108, 99, 255, 0.28);
+}
+
+.stat-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  background: var(--attendance-panel-elevated);
+  color: var(--attendance-accent-2);
+  font-size: 21px;
+  border: 1px solid var(--attendance-line);
+}
+
+.present .stat-icon {
+  color: var(--attendance-green);
+}
+
+.late .stat-icon {
+  color: var(--attendance-amber);
+}
+
+.absent .stat-icon {
+  color: var(--attendance-red);
+}
+
+.complete .stat-icon {
+  color: var(--attendance-accent-2);
+}
+
+.stat-label {
+  color: var(--attendance-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stat-value {
+  margin-top: 4px;
+  color: var(--attendance-ink);
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.history-section {
+  min-height: calc(100vh - 560px);
+  padding: 22px;
+  overflow: hidden;
+}
+
+.month-navigation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.nav-btn {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--attendance-line);
+  border-radius: 10px;
+  background: var(--attendance-panel-soft);
+  color: var(--attendance-muted);
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.nav-btn:hover {
+  border-color: rgba(108, 99, 255, 0.4);
+  color: var(--attendance-ink);
+  transform: translateY(-1px);
+}
+
+.attendance-loading {
+  min-height: 220px;
+  position: relative;
+}
+
+.attendance-table-wrapper {
+  margin-top: 18px;
+  overflow-x: auto;
+  border: 1px solid var(--attendance-line);
+  border-radius: 14px;
+}
+
+.attendance-table {
+  width: 100%;
+  min-width: 760px;
   border-collapse: collapse;
+  background: var(--attendance-panel);
+}
+
+.attendance-table th {
+  height: 48px;
+  padding: 0 16px;
+  background: var(--attendance-panel-soft);
+  color: var(--attendance-muted);
+  text-align: left;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--attendance-line);
+}
+
+.attendance-table th svg {
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+
+.attendance-table td {
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--attendance-line);
+  color: var(--attendance-muted);
   font-size: 14px;
 }
 
-.logs-table thead {
-  background: #f8f9fa;
-  border-bottom: 2px solid #dee2e6;
+.attendance-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
-.logs-table th {
-  padding: 16px;
-  text-align: left;
-  font-weight: 600;
-  color: #495057;
-  text-transform: uppercase;
-  font-size: 12px;
-  letter-spacing: 0.5px;
+.attendance-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
 }
 
-.logs-table tbody tr {
-  border-bottom: 1px solid #e9ecef;
-  transition: background-color 0.2s ease;
+.attendance-table tbody tr:hover td {
+  color: var(--attendance-ink);
 }
 
-.logs-table tbody tr:hover {
-  background: #f8f9fa;
-}
-
-.logs-table td {
-  padding: 14px 16px;
-}
-
-.timestamp-cell {
-  font-family: "Courier New", monospace;
-  color: #495057;
-  font-weight: 500;
+.date-cell,
+.time-cell,
+.duration-cell {
+  font-weight: 700;
   white-space: nowrap;
 }
 
-.action-cell {
-  color: #1a1a1a;
-  font-weight: 500;
-}
-
-.action-badge {
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 20px;
-  background: #e9ecef;
-  color: #495057;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-}
-
-.details-cell {
-  color: #666;
-  max-width: 250px;
+.notes-cell {
+  max-width: 260px;
+  color: var(--attendance-dim);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ip-cell {
-  color: #666;
-  font-family: "Courier New", monospace;
-  font-size: 13px;
-}
-
-.status-cell {
-  text-align: center;
-}
-
 .status-badge {
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-weight: 800;
   white-space: nowrap;
 }
 
-.status-badge.status-success {
-  background: rgba(40, 167, 69, 0.1);
-  color: #28a745;
+.status-badge.status-present {
+  background: var(--attendance-green-soft);
+  color: var(--attendance-green);
 }
 
-.status-badge.status-failed {
-  background: rgba(220, 53, 69, 0.1);
-  color: #dc3545;
+.status-badge.status-late {
+  background: var(--attendance-amber-soft);
+  color: var(--attendance-amber);
 }
 
-.status-badge.status-warning {
-  background: rgba(255, 193, 7, 0.1);
-  color: #ff9800;
+.status-badge.status-absent {
+  background: var(--attendance-red-soft);
+  color: var(--attendance-red);
 }
 
-.status-badge.status-info {
-  background: rgba(13, 110, 253, 0.1);
-  color: #0d6efd;
-}
-
-/* Row status background */
-.logs-table tbody tr.status-success {
-  background: rgba(40, 167, 69, 0.02);
-}
-
-.logs-table tbody tr.status-failed {
-  background: rgba(220, 53, 69, 0.02);
-}
-
-.logs-table tbody tr.status-warning {
-  background: rgba(255, 193, 7, 0.02);
-}
-
-.logs-table tbody tr.status-info {
-  background: rgba(13, 110, 253, 0.02);
-}
-
-/* ===========================
-   LOADING STATE
-   =========================== */
-.loading {
+.no-records {
+  margin-top: 18px;
+  padding: 46px 18px;
+  border: 1px dashed var(--attendance-line-strong);
+  border-radius: 14px;
+  background: var(--attendance-panel-soft);
   text-align: center;
-  padding: 40px 20px;
-  color: #666;
+  color: var(--attendance-muted);
 }
 
-.loading p {
-  font-size: 16px;
+.no-records-icon {
+  display: block;
+  margin: 0 auto 12px;
+  font-size: 34px;
+  color: var(--attendance-accent-2);
 }
 
-/* ===========================
-   NO LOGS
-   =========================== */
-.no-logs {
-  text-align: center;
-  padding: 40px 20px;
-  color: #999;
+.no-records p {
+  margin: 0;
+  font-weight: 700;
 }
 
-.no-logs p {
-  font-size: 16px;
+@media (min-width: 1440px) {
+  .attendance-overview-grid {
+    grid-template-columns: minmax(560px, 1.2fr) minmax(520px, 0.8fr);
+  }
 }
 
-/* ===========================
-   RESPONSIVE DESIGN
-   =========================== */
-@media (max-width: 768px) {
-  .mylogs-container {
-    padding: 12px;
+@media (max-width: 1120px) {
+  .attendance-overview-grid {
+    grid-template-columns: 1fr;
   }
 
-  .logs-header h2 {
-    font-size: 24px;
+  .stats-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .myattendance-container {
+    padding: 22px 14px;
   }
 
-  .filter-section {
+  .attendance-header {
+    align-items: flex-start;
+  }
+
+  .section-heading-row,
+  .history-header {
+    align-items: flex-start;
     flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
   }
 
-  .filter-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .filter-select {
-    min-width: auto;
+  .month-navigation {
     width: 100%;
+    justify-content: flex-start;
   }
 
-  .log-count {
-    text-align: center;
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .logs-table th,
-  .logs-table td {
-    padding: 12px 8px;
-    font-size: 13px;
-  }
-
-  .logs-table-wrapper {
-    border-radius: 8px;
-    border: 1px solid #dee2e6;
-  }
-
-  .details-cell,
-  .ip-cell {
-    display: none;
-  }
-
-  .action-badge {
-    font-size: 11px;
-    padding: 4px 8px;
-  }
-
-  .status-badge {
-    font-size: 11px;
-    padding: 4px 8px;
+  .stat-card {
+    min-height: 88px;
   }
 }
 
 @media (max-width: 480px) {
-  .mylogs-container {
-    padding: 8px;
+  .attendance-header {
+    gap: 12px;
   }
 
-  .logs-header h2 {
-    font-size: 20px;
+  .header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
   }
 
-  .filter-section {
-    padding: 12px;
+  .history-section,
+  .statistics-section {
+    padding: 16px;
+    border-radius: 14px;
   }
 
-  .logs-section {
-    padding: 12px;
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
 
-  .logs-table th,
-  .logs-table td {
-    padding: 8px 4px;
-    font-size: 12px;
-  }
-
-  .timestamp-cell {
-    font-size: 11px;
-  }
-
-  .action-cell {
-    font-size: 12px;
-  }
-
-  .details-cell,
-  .ip-cell {
-    display: none;
-  }
-
-  .action-badge {
-    font-size: 10px;
-    padding: 3px 6px;
-  }
-
-  .status-badge {
-    font-size: 10px;
-    padding: 3px 6px;
+  .nav-btn,
+  .current-month {
+    flex: 1;
   }
 }

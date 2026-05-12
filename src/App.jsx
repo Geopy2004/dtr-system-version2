@@ -60,6 +60,11 @@ function App() {
       />
 
       <Route
+        path="/my-attendance"
+        element={<Navigate to="/user/myattendance" replace />}
+      />
+
+      <Route
         path="/user/logs"
         element={
           <ProtectedRoute>

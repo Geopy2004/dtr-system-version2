@@ -1,66 +1,156 @@
 .loader-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  backdrop-filter: blur(4px);
+  overflow: hidden;
+  opacity: 0;
+  animation: overlayFadeIn 0.35s ease-out forwards;
+}
+
+.loader-overlay::before {
+  content: "";
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(
+    circle,
+    rgba(59, 130, 246, 0.18),
+    rgba(139, 92, 246, 0.08),
+    transparent 70%
+  );
+  animation: pulseGlow 4s ease-in-out infinite;
 }
 
 .loader-spinner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 90px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.9);
+  animation: spinnerIn 0.4s ease-out forwards;
 }
 
 .spinner-ring {
   position: absolute;
-  width: 100%;
-  height: 100%;
   border-radius: 50%;
-  border: 3px solid transparent;
-  animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  border: 4px solid transparent;
+  border-top-color: #3b82f6;
+  border-left-color: rgba(59, 130, 246, 0.4);
+  animation: spin 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.5));
 }
 
 .spinner-ring:nth-child(1) {
-  border-top-color: #3b82f6;
-  animation-delay: -0.45s;
+  width: 90px;
+  height: 90px;
+  animation-duration: 2.2s;
 }
 
 .spinner-ring:nth-child(2) {
+  width: 65px;
+  height: 65px;
   border-top-color: #6366f1;
-  animation-delay: -0.3s;
-  width: 70%;
-  height: 70%;
-  top: 15%;
-  left: 15%;
+  border-left-color: rgba(99, 102, 241, 0.4);
+  animation-duration: 1.8s;
+  animation-direction: reverse;
 }
 
 .spinner-ring:nth-child(3) {
+  width: 40px;
+  height: 40px;
   border-top-color: #8b5cf6;
-  animation-delay: -0.15s;
-  width: 45%;
-  height: 45%;
-  top: 27.5%;
-  left: 27.5%;
+  border-left-color: rgba(139, 92, 246, 0.4);
+  animation-duration: 1.4s;
+}
+
+.loader-core {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #60a5fa, #8b5cf6);
+  box-shadow:
+    0 0 10px #3b82f6,
+    0 0 25px rgba(139, 92, 246, 0.8);
+  animation: corePulse 2s ease-in-out infinite;
 }
 
 .loader-text {
   position: absolute;
-  bottom: -36px;
+  bottom: -42px;
   font-size: 13px;
-  color: #94a3b8;
-  letter-spacing: 0.1em;
-  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: #cbd5e1;
+  font-family: "DM Sans", sans-serif;
+  animation: textFade 2.2s ease-in-out infinite;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spinnerIn {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+
+  50% {
+    transform: scale(1.15);
+    opacity: 0.9;
+  }
+}
+
+@keyframes corePulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+}
+
+@keyframes textFade {
+  0%,
+  100% {
+    opacity: 0.6;
+    letter-spacing: 0.16em;
+  }
+
+  50% {
+    opacity: 1;
+    letter-spacing: 0.2em;
+  }
 }

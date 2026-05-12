@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 import express from "express";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
@@ -6,28 +5,140 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const router = express.Router();
+const TIME_ZONE = process.env.ATTENDANCE_TIME_ZONE || "Asia/Singapore";
+const LATE_CUTOFF_HOUR = Number(process.env.ATTENDANCE_LATE_HOUR || 8);
+const LATE_CUTOFF_MINUTE = Number(process.env.ATTENDANCE_LATE_MINUTE || 0);
 
-// ======================
-// SUPABASE ADMIN CLIENT (service role — bypasses RLS)
-// ======================
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// ======================
-// VERIFY TOKEN MIDDLEWARE
-// ======================
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("Missing Supabase backend environment variables.");
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+function getRequestSupabase(req) {
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return supabase;
+  }
+
+  const token = req.headers.authorization?.replace("Bearer ", "");
+
+  return createClient(supabaseUrl, supabaseKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  });
+}
+
+function getTimeParts(date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  return Object.fromEntries(parts.map((part) => [part.type, part.value]));
+}
+
+function getAttendanceDate(date) {
+  const parts = getTimeParts(date);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function getStatus(timeIn) {
+  const parts = getTimeParts(new Date(timeIn));
+  const hours = Number(parts.hour);
+  const minutes = Number(parts.minute);
+  const lateMinutes =
+    (hours - LATE_CUTOFF_HOUR) * 60 + (minutes - LATE_CUTOFF_MINUTE);
+
+  if (lateMinutes > 0) {
+    return { status: "late", late_minutes: lateMinutes };
+  }
+
+  return { status: "present", late_minutes: 0 };
+}
+
+function calculateHoursWorked(timeIn, timeOut) {
+  const start = new Date(timeIn);
+  const end = new Date(timeOut);
+  const diffMs = end.getTime() - start.getTime();
+
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return 0;
+
+  return Number((diffMs / 1000 / 60 / 60).toFixed(2));
+}
+
+function buildStats(records) {
+  return {
+    total_days: records.length,
+    present: records.filter((record) => record.status === "present").length,
+    late: records.filter((record) => record.status === "late").length,
+    absent: records.filter((record) => record.status === "absent").length,
+    half_day: records.filter(
+      (record) => record.status === "half-day" || record.status === "halfday"
+    ).length,
+    total_late_minutes: records.reduce(
+      (sum, record) => sum + (Number(record.late_minutes) || 0),
+      0
+    ),
+    total_hours: Number(
+      records
+        .reduce((sum, record) => sum + (Number(record.hours_worked) || 0), 0)
+        .toFixed(2)
+    ),
+  };
+}
+
+function getMissingSchemaColumn(error) {
+  if (error?.code !== "PGRST204") return null;
+
+  const match = error.message?.match(/'([^']+)' column/);
+  return match?.[1] || null;
+}
+
+async function runWithSchemaFallback(createQuery, payload) {
+  let nextPayload = { ...payload };
+
+  for (let attempt = 0; attempt < Object.keys(payload).length + 1; attempt += 1) {
+    const { data, error } = await createQuery(nextPayload);
+
+    if (!error) return data;
+
+    const missingColumn = getMissingSchemaColumn(error);
+
+    if (!missingColumn || !(missingColumn in nextPayload)) {
+      throw error;
+    }
+
+    nextPayload = Object.fromEntries(
+      Object.entries(nextPayload).filter(([key]) => key !== missingColumn)
+    );
+  }
+
+  throw new Error("Attendance schema does not match the required fields.");
+}
+
 const requireAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!authHeader?.startsWith("Bearer ")) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const token = authHeader.split(" ")[1];
-
+    const token = authHeader.replace("Bearer ", "");
     const {
       data: { user },
       error,
@@ -38,173 +149,150 @@ const requireAuth = async (req, res, next) => {
     }
 
     req.user = user;
-    next();
+    req.supabase = getRequestSupabase(req);
+    return next();
   } catch (err) {
     console.error("Auth error:", err);
-    res.status(401).json({ message: "Unauthorized" });
+    return res.status(401).json({ message: "Unauthorized" });
   }
 };
 
-// ======================
-// HELPER: DETERMINE STATUS
-// ======================
-const getStatus = (timeIn) => {
-  const date = new Date(timeIn);
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-
-  const cutoffHour = 8;
-  const cutoffMinute = 0;
-
-  if (
-    hours > cutoffHour ||
-    (hours === cutoffHour && minutes > cutoffMinute)
-  ) {
-    const lateMinutes =
-      (hours - cutoffHour) * 60 + (minutes - cutoffMinute);
-    return { status: "late", late_minutes: lateMinutes };
-  }
-
-  return { status: "present", late_minutes: 0 };
-};
-
-// ======================
-// POST /attendance/timein
-// ======================
-router.post("/timein", requireAuth, async (req, res) => {
+async function timeIn(req, res) {
   try {
-    const { location = "", notes = "" } = req.body;
+    const { location = "", notes = "" } = req.body || {};
     const userId = req.user.id;
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
+    const today = getAttendanceDate(now);
 
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await req.supabase
       .from("attendance")
       .select("id")
       .eq("user_id", userId)
       .eq("date", today)
-      .single();
+      .maybeSingle();
+
+    if (existingError) throw existingError;
 
     if (existing) {
-      return res
-        .status(400)
-        .json({ message: "Already timed in today" });
+      return res.status(400).json({ message: "Already timed in today" });
     }
 
     const { status, late_minutes } = getStatus(now);
 
-    const { data, error } = await supabase
-      .from("attendance")
-      .insert([
-        {
-          user_id: userId,
-          time_in: now.toISOString(),
-          date: today,
-          location,
-          notes,
-          status,
-          late_minutes,
-        },
-      ])
-      .select()
-      .single();
+    const data = await runWithSchemaFallback(
+      (payload) =>
+        req.supabase
+          .from("attendance")
+          .insert([payload])
+          .select()
+          .single(),
+      {
+        user_id: userId,
+        date: today,
+        time_in: now.toISOString(),
+        location,
+        notes,
+        status,
+        late_minutes,
+        hours_worked: 0,
+      }
+    );
 
-    if (error) throw error;
-
-    res.json({ message: "Time in recorded", attendance: data });
+    return res.status(201).json({ message: "Time in recorded", attendance: data });
   } catch (err) {
     console.error("Time in error:", err);
-    res.status(500).json({ message: err.message || "Server error" });
+    return res.status(500).json({ message: err.message || "Server error" });
   }
-});
+}
 
-// ======================
-// POST /attendance/timeout
-// ======================
-router.post("/timeout", requireAuth, async (req, res) => {
+async function timeOut(req, res) {
   try {
     const userId = req.user.id;
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
+    const today = getAttendanceDate(now);
 
-    const { data: existing, error: fetchError } = await supabase
+    const { data: existing, error: fetchError } = await req.supabase
       .from("attendance")
-      .select("id, time_out")
+      .select("*")
       .eq("user_id", userId)
       .eq("date", today)
-      .single();
+      .maybeSingle();
 
-    if (fetchError || !existing) {
+    if (fetchError) throw fetchError;
+
+    if (!existing) {
       return res
         .status(400)
         .json({ message: "No time in record found for today" });
     }
 
     if (existing.time_out) {
-      return res
-        .status(400)
-        .json({ message: "Already timed out today" });
+      return res.status(400).json({ message: "Already timed out today" });
     }
 
-    const { data, error } = await supabase
-      .from("attendance")
-      .update({ time_out: now.toISOString() })
-      .eq("id", existing.id)
-      .select()
-      .single();
+    const hoursWorked = calculateHoursWorked(existing.time_in, now);
 
-    if (error) throw error;
+    const data = await runWithSchemaFallback(
+      (payload) =>
+        req.supabase
+          .from("attendance")
+          .update(payload)
+          .eq("id", existing.id)
+          .select()
+          .single(),
+      {
+        time_out: now.toISOString(),
+        hours_worked: hoursWorked,
+      }
+    );
 
-    res.json({ message: "Time out recorded", attendance: data });
+    return res.json({ message: "Time out recorded", attendance: data });
   } catch (err) {
     console.error("Time out error:", err);
-    res.status(500).json({ message: err.message || "Server error" });
+    return res.status(500).json({ message: err.message || "Server error" });
   }
-});
+}
 
-// ======================
-// GET /attendance/my-attendance
-// ======================
-router.get("/my-attendance", requireAuth, async (req, res) => {
+async function getMyAttendance(req, res) {
   try {
     const userId = req.user.id;
     const { startDate, endDate, limit } = req.query;
+    const parsedLimit = Number.parseInt(limit, 10);
 
-    let query = supabase
+    let query = req.supabase
       .from("attendance")
       .select("*")
       .eq("user_id", userId)
-      .order("date", { ascending: false });
+      .order("date", { ascending: false })
+      .order("time_in", { ascending: false });
 
     if (startDate) query = query.gte("date", startDate);
     if (endDate) query = query.lte("date", endDate);
-    if (limit) query = query.limit(parseInt(limit));
+    if (Number.isInteger(parsedLimit) && parsedLimit > 0) {
+      query = query.limit(parsedLimit);
+    }
 
     const { data, error } = await query;
 
     if (error) throw error;
 
-    const total_days = data.length;
-    const present = data.filter((r) => r.status === "present").length;
-    const late = data.filter((r) => r.status === "late").length;
-    const total_late_minutes = data.reduce(
-      (sum, r) => sum + (r.late_minutes || 0),
-      0
-    );
+    const attendance = data || [];
 
-    res.json({
-      attendance: data,
-      stats: {
-        total_days,
-        present,
-        late,
-        total_late_minutes,
-      },
+    return res.json({
+      attendance,
+      stats: buildStats(attendance),
     });
   } catch (err) {
     console.error("Get attendance error:", err);
-    res.status(500).json({ message: err.message || "Server error" });
+    return res.status(500).json({ message: err.message || "Server error" });
   }
-});
+}
+
+router.post("/timein", requireAuth, timeIn);
+router.post("/time-in", requireAuth, timeIn);
+router.post("/timeout", requireAuth, timeOut);
+router.post("/time-out", requireAuth, timeOut);
+router.get("/my-attendance", requireAuth, getMyAttendance);
+router.get("/myattendance", requireAuth, getMyAttendance);
 
 export default router;

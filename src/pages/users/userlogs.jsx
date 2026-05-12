@@ -1,32 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../context/AuthContext";
 import "./userlogs.css";
 import Sidebar from "../../components/common/Sidebar";
 
-export default function MyLogs() {
-  const { user } = useAuth();
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
-
-  const fetchUserLogs = async () => {
-    try {
-      setLoading(true);
-      // Replace with your actual API endpoint
-      const response = await fetch(`/api/logs/user/${user?.id}`);
-      const data = await response.json();
-      setLogs(data || []);
-    } catch (error) {
-      console.error("Failed to fetch logs:", error);
-      // Mock data for development
-      setLogs(generateMockLogs());
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generateMockLogs = () => [
+function generateMockLogs() {
+  return [
     {
       id: 1,
       action: "Clock In",
@@ -37,7 +15,9 @@ export default function MyLogs() {
     {
       id: 2,
       action: "Clock Out",
-      timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 - 8 * 60 * 60 * 1000),
+      timestamp: new Date(
+        Date.now() - 1 * 24 * 60 * 60 * 1000 - 8 * 60 * 60 * 1000
+      ),
       status: "success",
       details: "End of shift",
     },
@@ -63,11 +43,36 @@ export default function MyLogs() {
       details: "Morning check-in",
     },
   ];
+}
+
+export default function MyLogs() {
+  const { user } = useAuth();
+  const userId = user?.id;
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const fetchUserLogs = useCallback(async () => {
+    try {
+      setLoading(true);
+      // Replace with your actual API endpoint
+      const response = await fetch(`/api/logs/user/${userId}`);
+      const data = await response.json();
+      setLogs(data || []);
+    } catch (error) {
+      console.error("Failed to fetch logs:", error);
+      // Mock data for development
+      setLogs(generateMockLogs());
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchUserLogs();
-  }, [user?.id]);
+  }, [fetchUserLogs]);
 
   const filteredLogs = logs.filter((log) => {
     const matchesFilter = filter === "all" || log.status === filter;

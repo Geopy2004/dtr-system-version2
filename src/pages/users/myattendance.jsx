@@ -1,71 +1,77 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { attendanceAPI } from "../../services/api";
 import toast from "react-hot-toast";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import {
+  FiAlertCircle,
+  FiCalendar,
+  FiCheckCircle,
+  FiChevronLeft,
+  FiChevronRight,
+  FiClock,
+  FiFileText,
+  FiTrendingUp,
+  FiUserCheck,
+  FiUserX,
+  FiXCircle,
+} from "react-icons/fi";
+import { HiOutlineOfficeBuilding } from "react-icons/hi";
+import Sidebar from "../../components/common/Sidebar";
 import TimeInOut from "./timeinout.jsx";
+import Loader from "../../components/common/Loader";
 import "./myattendance.css";
 
-/**
- * MyAttendance Component
- * 
- * Displays:
- * - TimeInOut widget for clocking in/out
- * - Monthly statistics (Total, Present, Late, Absent)
- * - Attendance history table with filtering by month
- * 
- * Updates automatically when user times in/out
- */
 export default function MyAttendance() {
   const [attendanceList, setAttendanceList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  // ─────────────────────────────
-  // FETCH ATTENDANCE HISTORY
-  // ─────────────────────────────
+  const fetchAttendanceHistory = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const startDate = format(startOfMonth(currentMonth), "yyyy-MM-dd");
+      const endDate = format(endOfMonth(currentMonth), "yyyy-MM-dd");
+      const result = await attendanceAPI.getMyAttendance({
+        startDate,
+        endDate,
+      });
+      const attendance = Array.isArray(result?.attendance)
+        ? result.attendance
+        : Array.isArray(result?.data)
+        ? result.data
+        : [];
+
+      setAttendanceList(attendance);
+    } catch (error) {
+      console.error("Fetch error:", error);
+      toast.error("Failed to load attendance history");
+    } finally {
+      setLoading(false);
+    }
+  }, [currentMonth]);
+
   useEffect(() => {
-    const fetchAttendanceHistory = async () => {
-      try {
-        setLoading(true);
+    let isMounted = true;
 
-        const startDate = format(startOfMonth(currentMonth), "yyyy-MM-dd");
-        const endDate = format(endOfMonth(currentMonth), "yyyy-MM-dd");
-
-        const result = await attendanceAPI.getMyAttendance({
-          startDate,
-          endDate,
-        });
-
-        console.log("ATTENDANCE HISTORY:", result);
-
-        // Handle different API response formats
-        const attendance = Array.isArray(result?.attendance)
-          ? result.attendance
-          : Array.isArray(result?.data)
-          ? result.data
-          : [];
-
-        setAttendanceList(attendance);
-      } catch (error) {
-        console.error("Fetch error:", error);
-        toast.error("Failed to load attendance history");
-      } finally {
-        setLoading(false);
+    const loadAttendance = async () => {
+      if (isMounted) {
+        await fetchAttendanceHistory();
       }
     };
 
-    fetchAttendanceHistory();
-  }, [currentMonth]);
+    loadAttendance();
 
-  // ─────────────────────────────
-  // HANDLE ATTENDANCE UPDATE
-  // ─────────────────────────────
-  // Called when user times in or out
-  const handleAttendanceUpdate = (attendance) => {
-    if (attendance) {
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchAttendanceHistory]);
+
+  const handleAttendanceUpdate = useCallback(
+    (attendance) => {
+      if (!attendance) return;
+
       const today = format(new Date(), "yyyy-MM-dd");
-      
-      // Find and update today's record
       const existingIndex = attendanceList.findIndex(
         (record) =>
           format(new Date(record.date || record.created_at), "yyyy-MM-dd") ===
@@ -73,35 +79,29 @@ export default function MyAttendance() {
       );
 
       if (existingIndex >= 0) {
-        // Update existing record
         const updated = [...attendanceList];
         updated[existingIndex] = attendance;
         setAttendanceList(updated);
-      } else {
-        // Add new record if it doesn't exist
-        setAttendanceList([attendance, ...attendanceList]);
+        return;
       }
-    }
-  };
 
-  // ─────────────────────────────
-  // MONTH NAVIGATION
-  // ─────────────────────────────
-  const handlePreviousMonth = () => {
+      setAttendanceList([attendance, ...attendanceList]);
+    },
+    [attendanceList]
+  );
+
+  const handlePreviousMonth = useCallback(() => {
     setCurrentMonth(
       new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1)
     );
-  };
+  }, [currentMonth]);
 
-  const handleNextMonth = () => {
+  const handleNextMonth = useCallback(() => {
     setCurrentMonth(
       new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1)
     );
-  };
+  }, [currentMonth]);
 
-  // ─────────────────────────────
-  // CALCULATE STATISTICS
-  // ─────────────────────────────
   const stats = {
     total: attendanceList.length,
     present: attendanceList.filter(
@@ -112,143 +112,218 @@ export default function MyAttendance() {
     ).length,
     late: attendanceList.filter((record) => record.status === "late").length,
   };
+  const completed = attendanceList.filter(
+    (record) => record.time_in && record.time_out
+  ).length;
+  const completionRate = stats.total
+    ? Math.round((completed / stats.total) * 100)
+    : 0;
 
-  // ─────────────────────────────
-  // RENDER
-  // ─────────────────────────────
   return (
-    <div className="myattendance-container">
-      {/* HEADER */}
-      <div className="attendance-header">
-        <h2>My Attendance</h2>
-        <p className="subtitle">Track your attendance and time records</p>
-      </div>
+    <div className="attendance-layout">
+      <Sidebar />
+      <main className="myattendance-container">
+        <div className="attendance-header">
+          <div className="header-icon">
+            <HiOutlineOfficeBuilding />
+          </div>
 
-      {/* TIME IN/OUT SECTION */}
-      <section className="timeinout-section">
-        <TimeInOut onAttendanceUpdate={handleAttendanceUpdate} />
-      </section>
-
-      {/* STATISTICS SECTION */}
-      <section className="statistics-section">
-        <h3>Monthly Statistics</h3>
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-label">Total Days</div>
-            <div className="stat-value">{stats.total}</div>
-          </div>
-          <div className="stat-card present">
-            <div className="stat-label">Present</div>
-            <div className="stat-value">{stats.present}</div>
-          </div>
-          <div className="stat-card late">
-            <div className="stat-label">Late</div>
-            <div className="stat-value">{stats.late}</div>
-          </div>
-          <div className="stat-card absent">
-            <div className="stat-label">Absent</div>
-            <div className="stat-value">{stats.absent}</div>
-          </div>
-        </div>
-      </section>
-
-      {/* ATTENDANCE HISTORY SECTION */}
-      <section className="history-section">
-        <div className="history-header">
-          <h3>Attendance History</h3>
-          <div className="month-navigation">
-            <button
-              onClick={handlePreviousMonth}
-              className="nav-btn"
-              type="button"
-            >
-              ← Previous
-            </button>
-            <span className="current-month">
-              {format(currentMonth, "MMMM yyyy")}
-            </span>
-            <button onClick={handleNextMonth} className="nav-btn" type="button">
-              Next →
-            </button>
+          <div className="header-text">
+            <span className="attendance-eyebrow">Employee Time Record</span>
+            <h2>My Attendance</h2>
+            <p className="subtitle">Track your attendance and time records</p>
           </div>
         </div>
 
-        {loading ? (
-          <div className="loading">
-            <p>Loading attendance records...</p>
+        <div className="attendance-overview-grid">
+          <section className="timeinout-section">
+            <TimeInOut onAttendanceUpdate={handleAttendanceUpdate} />
+          </section>
+
+          <section className="statistics-section">
+            <div className="section-heading-row">
+              <h3>
+                <FiTrendingUp className="section-icon" />
+                Monthly Statistics
+              </h3>
+              <span className="section-pill">{format(currentMonth, "MMMM yyyy")}</span>
+            </div>
+
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <FiCalendar />
+                </div>
+                <div className="stat-content">
+                  <div className="stat-label">Total Days</div>
+                  <div className="stat-value">{stats.total}</div>
+                </div>
+              </div>
+
+              <div className="stat-card present">
+                <div className="stat-icon">
+                  <FiCheckCircle />
+                </div>
+                <div className="stat-content">
+                  <div className="stat-label">Present</div>
+                  <div className="stat-value">{stats.present}</div>
+                </div>
+              </div>
+
+              <div className="stat-card late">
+                <div className="stat-icon">
+                  <FiAlertCircle />
+                </div>
+                <div className="stat-content">
+                  <div className="stat-label">Late</div>
+                  <div className="stat-value">{stats.late}</div>
+                </div>
+              </div>
+
+              <div className="stat-card absent">
+                <div className="stat-icon">
+                  <FiXCircle />
+                </div>
+                <div className="stat-content">
+                  <div className="stat-label">Absent</div>
+                  <div className="stat-value">{stats.absent}</div>
+                </div>
+              </div>
+
+              <div className="stat-card complete">
+                <div className="stat-icon">
+                  <FiClock />
+                </div>
+                <div className="stat-content">
+                  <div className="stat-label">Complete</div>
+                  <div className="stat-value">{completionRate}%</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section className="history-section">
+          <div className="history-header">
+            <h3>
+              <FiClock className="section-icon" />
+              Attendance History
+            </h3>
+
+            <div className="month-navigation">
+              <button
+                onClick={handlePreviousMonth}
+                className="nav-btn"
+                type="button"
+              >
+                <FiChevronLeft />
+                Previous
+              </button>
+
+              <span className="current-month">
+                {format(currentMonth, "MMMM yyyy")}
+              </span>
+
+              <button
+                onClick={handleNextMonth}
+                className="nav-btn"
+                type="button"
+              >
+                Next
+                <FiChevronRight />
+              </button>
+            </div>
           </div>
-        ) : attendanceList.length > 0 ? (
-          <div className="attendance-table-wrapper">
-            <table className="attendance-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Time In</th>
-                  <th>Time Out</th>
-                  <th>Duration</th>
-                  <th>Status</th>
-                  <th>Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendanceList.map((record, index) => {
-                  const timeIn = record.time_in
-                    ? new Date(record.time_in)
-                    : null;
-                  const timeOut = record.time_out
-                    ? new Date(record.time_out)
-                    : null;
-                  const duration =
-                    timeIn && timeOut
-                      ? Math.round((timeOut - timeIn) / (1000 * 60)) // minutes
+
+          {loading ? (
+            <div className="attendance-loading">
+              <Loader />
+            </div>
+          ) : attendanceList.length > 0 ? (
+            <div className="attendance-table-wrapper">
+              <table className="attendance-table">
+                <thead>
+                  <tr>
+                    <th>
+                      <FiCalendar /> Date
+                    </th>
+                    <th>
+                      <FiUserCheck /> Time In
+                    </th>
+                    <th>
+                      <FiUserX /> Time Out
+                    </th>
+                    <th>
+                      <FiClock /> Duration
+                    </th>
+                    <th>Status</th>
+                    <th>
+                      <FiFileText /> Notes
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {attendanceList.map((record, index) => {
+                    const timeIn = record.time_in
+                      ? new Date(record.time_in)
                       : null;
+                    const timeOut = record.time_out
+                      ? new Date(record.time_out)
+                      : null;
+                    const duration =
+                      timeIn && timeOut
+                        ? Math.round((timeOut - timeIn) / (1000 * 60))
+                        : null;
 
-                  return (
-                    <tr
-                      key={index}
-                      className={`status-${record.status || "absent"}`}
-                    >
-                      <td className="date-cell">
-                        {format(
-                          new Date(record.date || record.created_at),
-                          "MMM dd, yyyy"
-                        )}
-                      </td>
-                      <td className="time-cell">
-                        {timeIn ? format(timeIn, "hh:mm:ss a") : "—"}
-                      </td>
-                      <td className="time-cell">
-                        {timeOut ? format(timeOut, "hh:mm:ss a") : "—"}
-                      </td>
-                      <td className="duration-cell">
-                        {duration ? `${duration}m` : "—"}
-                      </td>
-                      <td className="status-cell">
-                        <span
-                          className={`status-badge status-${
-                            record.status || "absent"
-                          }`}
-                        >
-                          {record.status === "late"
-                            ? `Late (${record.late_minutes}m)`
-                            : record.status === "present"
-                            ? "Present"
-                            : "Absent"}
-                        </span>
-                      </td>
-                      <td className="notes-cell">{record.notes || "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="no-records">
-            <p>No attendance records for {format(currentMonth, "MMMM yyyy")}</p>
-          </div>
-        )}
-      </section>
+                    return (
+                      <tr
+                        key={record.id || index}
+                        className={`status-${record.status || "absent"}`}
+                      >
+                        <td className="date-cell">
+                          {format(
+                            new Date(record.date || record.created_at),
+                            "MMM dd, yyyy"
+                          )}
+                        </td>
+                        <td className="time-cell">
+                          {timeIn ? format(timeIn, "hh:mm:ss a") : "-"}
+                        </td>
+                        <td className="time-cell">
+                          {timeOut ? format(timeOut, "hh:mm:ss a") : "-"}
+                        </td>
+                        <td className="duration-cell">
+                          {duration ? `${duration}m` : "-"}
+                        </td>
+                        <td className="status-cell">
+                          <span
+                            className={`status-badge status-${
+                              record.status || "absent"
+                            }`}
+                          >
+                            {record.status === "late"
+                              ? `Late (${record.late_minutes || 0}m)`
+                              : record.status === "present"
+                              ? "Present"
+                              : "Absent"}
+                          </span>
+                        </td>
+                        <td className="notes-cell">{record.notes || "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="no-records">
+              <FiCalendar className="no-records-icon" />
+              <p>No attendance records for {format(currentMonth, "MMMM yyyy")}</p>
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   );
 }

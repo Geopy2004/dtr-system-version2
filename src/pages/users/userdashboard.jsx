@@ -1,6 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { 
+  FaCalendarAlt, 
+  FaCheckCircle, 
+  FaClock, 
+  FaHourglassHalf, 
+  FaTimesCircle, 
+  
+  FaArrowRight 
+} from "react-icons/fa";
+import { MdAccessTime } from "react-icons/md";
 
 import Sidebar from "../../components/common/Sidebar.jsx";
 import { attendanceAPI } from "../../services/api";
@@ -253,37 +263,37 @@ export default function UserDashboard() {
               label="Total Days"
               value={stats.total_days}
               accent="default"
-              icon="📅"
+              icon={<FaCalendarAlt />}
             />
             <StatCard
               label="Present"
               value={stats.present}
               accent="green"
-              icon="✅"
+              icon={<FaCheckCircle />}
             />
             <StatCard
               label="Late Days"
               value={stats.late}
               accent="amber"
-              icon="⏰"
+              icon={<FaClock />}
             />
             <StatCard
               label="Late Minutes"
               value={stats.total_late_minutes}
               accent="red"
-              icon="⏱️"
+              icon={<FaHourglassHalf />}
             />
             <StatCard
               label="Absent"
               value={stats.absent}
               accent="gray"
-              icon="❌"
+              icon={<FaTimesCircle />}
             />
             <StatCard
               label="Total Hours"
               value={stats.total_hours}
               accent="blue"
-              icon="⌚"
+              icon={<MdAccessTime />}
               subtitle="hours"
             />
           </div>
@@ -313,9 +323,9 @@ export default function UserDashboard() {
               <h2 className={styles.sectionTitle}>Recent Attendance</h2>
               <button
                 className={styles.viewAllButton}
-                onClick={() => navigate("/my-attendance")}
+                onClick={() => navigate("/user/myattendance")}
               >
-                View All →
+                View All <FaArrowRight />
               </button>
             </div>
 

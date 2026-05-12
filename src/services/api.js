@@ -82,38 +82,127 @@ export const profileAPI = {
 };
 
 // Attendance API
-export const attendanceAPI = {
-  async timeIn(userId) {
-    const now = new Date();
-    const today = now.toISOString().split("T")[0];
+const getAuthenticatedUser = async () => {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
 
-    const { data: existing } = await supabase
+  if (error) throw error;
+  if (!user) throw new Error("User not authenticated");
+
+  return user;
+};
+
+const getLocalDateString = (date = new Date()) => {
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().split("T")[0];
+};
+
+const getAttendanceStatus = (timeIn) => {
+  const date = new Date(timeIn);
+  const lateMinutes = (date.getHours() - 8) * 60 + date.getMinutes();
+
+  if (lateMinutes > 0) {
+    return { status: "late", late_minutes: lateMinutes };
+  }
+
+  return { status: "present", late_minutes: 0 };
+};
+
+const getAttendanceStats = (records) => ({
+  total_days: records.length,
+  present: records.filter((record) => record.status === "present").length,
+  late: records.filter((record) => record.status === "late").length,
+  absent: records.filter((record) => record.status === "absent").length,
+  half_day: records.filter(
+    (record) => record.status === "half-day" || record.status === "halfday"
+  ).length,
+  total_late_minutes: records.reduce(
+    (sum, record) => sum + (Number(record.late_minutes) || 0),
+    0
+  ),
+  total_hours: records
+    .reduce((sum, record) => sum + (Number(record.hours_worked) || 0), 0)
+    .toFixed(2),
+});
+
+const getMissingSchemaColumn = (error) => {
+  if (error?.code !== "PGRST204") return null;
+
+  const match = error.message?.match(/'([^']+)' column/);
+  return match?.[1] || null;
+};
+
+const runWithSchemaFallback = async (createQuery, payload) => {
+  let nextPayload = { ...payload };
+
+  for (let attempt = 0; attempt < Object.keys(payload).length + 1; attempt += 1) {
+    const { data, error } = await createQuery(nextPayload);
+
+    if (!error) return data;
+
+    const missingColumn = getMissingSchemaColumn(error);
+
+    if (!missingColumn || !(missingColumn in nextPayload)) {
+      throw error;
+    }
+
+    nextPayload = Object.fromEntries(
+      Object.entries(nextPayload).filter(([key]) => key !== missingColumn)
+    );
+  }
+
+  throw new Error("Attendance schema does not match the required fields.");
+};
+
+export const attendanceAPI = {
+  async timeIn(location = "", notes = "") {
+    const user = await getAuthenticatedUser();
+    const now = new Date();
+    const today = getLocalDateString(now);
+
+    const { data: existing, error: existingError } = await supabase
       .from("attendance")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .eq("date", today)
       .maybeSingle();
 
+    if (existingError) throw existingError;
     if (existing) throw new Error("Already timed in today.");
 
-    const { data, error } = await supabase
-      .from("attendance")
-      .insert([{ user_id: userId, date: today, time_in: now.toISOString() }])
-      .select()
-      .single();
+    const { status, late_minutes } = getAttendanceStatus(now);
 
-    if (error) throw error;
-    return data;
+    return runWithSchemaFallback(
+      (payload) =>
+        supabase
+          .from("attendance")
+          .insert([payload])
+          .select()
+          .single(),
+      {
+        user_id: user.id,
+        date: today,
+        time_in: now.toISOString(),
+        location,
+        notes,
+        status,
+        late_minutes,
+        hours_worked: 0,
+      }
+    );
   },
 
   async timeOut(userId) {
+    const user = userId ? { id: userId } : await getAuthenticatedUser();
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
+    const today = getLocalDateString(now);
 
     const { data: existing, error: fetchError } = await supabase
       .from("attendance")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .eq("date", today)
       .maybeSingle();
 
@@ -124,23 +213,29 @@ export const attendanceAPI = {
     const timeIn = new Date(existing.time_in);
     const hoursWorked = ((now - timeIn) / 1000 / 60 / 60).toFixed(2);
 
-    const { data, error } = await supabase
-      .from("attendance")
-      .update({ time_out: now.toISOString(), hours_worked: hoursWorked })
-      .eq("id", existing.id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return runWithSchemaFallback(
+      (payload) =>
+        supabase
+          .from("attendance")
+          .update(payload)
+          .eq("id", existing.id)
+          .select()
+          .single(),
+      {
+        time_out: now.toISOString(),
+        hours_worked: hoursWorked,
+      }
+    );
   },
 
   async getTodayRecord(userId) {
-    const today = new Date().toISOString().split("T")[0];
+    const user = userId ? { id: userId } : await getAuthenticatedUser();
+    const today = getLocalDateString();
+
     const { data, error } = await supabase
       .from("attendance")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .eq("date", today)
       .maybeSingle();
 
@@ -149,13 +244,16 @@ export const attendanceAPI = {
   },
 
   async getRecords(userId, startDate, endDate) {
+    const user = userId ? { id: userId } : await getAuthenticatedUser();
+
     const { data, error } = await supabase
       .from("attendance")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .gte("date", startDate)
       .lte("date", endDate)
-      .order("date", { ascending: false });
+      .order("date", { ascending: false })
+      .order("time_in", { ascending: false });
 
     if (error) throw error;
     return data || [];
@@ -167,28 +265,22 @@ export const attendanceAPI = {
       .select("*, profiles(full_name, email, department)")
       .gte("date", startDate)
       .lte("date", endDate)
-      .order("date", { ascending: false });
+      .order("date", { ascending: false })
+      .order("time_in", { ascending: false });
 
     if (error) throw error;
     return data || [];
   },
 
-  // ✅ NEW METHOD - Get current user's attendance with stats
-  async getMyAttendance(params) {
+  async getMyAttendance(params = {}) {
     const { userId, startDate, endDate, limit } = params;
+    const user = userId ? { id: userId } : await getAuthenticatedUser();
 
-    // Validate userId
-    if (!userId) {
-      throw new Error("userId is required");
-    }
-
-    // Build the query
     let query = supabase
       .from("attendance")
       .select("*")
-      .eq("user_id", userId);
+      .eq("user_id", user.id);
 
-    // Add date range filters if provided
     if (startDate) {
       query = query.gte("date", startDate);
     }
@@ -196,36 +288,23 @@ export const attendanceAPI = {
       query = query.lte("date", endDate);
     }
 
-    // Order by date descending (most recent first)
-    query = query.order("date", { ascending: false });
+    query = query
+      .order("date", { ascending: false })
+      .order("time_in", { ascending: false });
 
-    // Add limit if provided (e.g., for "recent" records)
     if (limit) {
       query = query.limit(limit);
     }
 
-    // Execute query
     const { data, error } = await query;
 
     if (error) throw error;
 
     const records = data || [];
 
-    // Calculate statistics from the records
-    const stats = {
-      total_days: records.length,
-      present: records.filter(r => r.status === "present").length,
-      late: records.filter(r => r.status === "late").length,
-      absent: records.filter(r => r.status === "absent").length,
-      half_day: records.filter(r => r.status === "half-day" || r.status === "halfday").length,
-      total_late_minutes: records.reduce((sum, r) => sum + (r.late_minutes || 0), 0),
-      total_hours: records.reduce((sum, r) => sum + (parseFloat(r.hours_worked) || 0), 0).toFixed(2),
-    };
-
-    // Return attendance records and calculated stats
     return {
       attendance: records,
-      stats: stats,
+      stats: getAttendanceStats(records),
     };
   },
 };
