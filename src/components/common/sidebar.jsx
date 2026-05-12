@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import "./Sidebar.css";
@@ -14,15 +14,15 @@ import {
 } from "react-icons/md";
 
 export default function Sidebar() {
-  const { isAdmin, logout, user } = useAuth();
+  const { isAdmin, logout, user, profile } = useAuth();
   const navigate = useNavigate();
+  const logoutInProgressRef = useRef(false);
 
   /* =========================
      STATES
   ========================= */
   const [open, setOpen] = useState(false);
-  // eslint-disable-next-line no-unused-vars
-  const [animating, setAnimating] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   /* =========================
      PREVENT BODY SCROLL
@@ -35,19 +35,6 @@ export default function Sidebar() {
   }, [open]);
 
   /* =========================
-     OPEN WITH ANIMATION
-  ========================= */
-  const openMenu = () => {
-    setOpen(true);
-    setAnimating(true);
-    setTimeout(() => setAnimating(false), 350);
-  };
-
-  const closeMenu = () => {
-    setOpen(false);
-  };
-
-  /* =========================
      MENU ITEMS
   ========================= */
   const userMenus = [
@@ -57,7 +44,7 @@ export default function Sidebar() {
       label: "Dashboard",
     },
     {
-      path: "/user/attendance",
+      path: "/user/myattendance",
       icon: <MdAccessTime size={22} />,
       label: "My Attendance",
     },
@@ -94,22 +81,75 @@ export default function Sidebar() {
   const menus = isAdmin ? adminMenus : userMenus;
 
   /* =========================
-     LOGOUT
+     OPEN MENU
   ========================= */
-  const handleLogout = useCallback(async () => {
-    await logout();
-    navigate("/login");
-  }, [logout, navigate]);
+  const openMenu = useCallback(() => {
+    if (!isLoggingOut) {
+      setOpen(true);
+    }
+  }, [isLoggingOut]);
+
+  /* =========================
+     CLOSE MENU
+  ========================= */
+  const closeMenu = useCallback(() => {
+    setOpen(false);
+  }, []);
+
+  /* =========================
+     HANDLE LOGOUT
+  ========================= */
+  const handleLogout = useCallback(async (e) => {
+    // Prevent any other clicks from interfering
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+
+    // Prevent multiple logout calls
+    if (logoutInProgressRef.current || isLoggingOut) {
+      return;
+    }
+
+    logoutInProgressRef.current = true;
+    setIsLoggingOut(true);
+
+    try {
+      await logout();
+      // ProtectedRoute will redirect to login when user becomes null
+      navigate("/login", { replace: true });
+    } catch (err) {
+      console.error("Logout error:", err);
+      // Even if logout fails, redirect to login
+      navigate("/login", { replace: true });
+    } finally {
+      setIsLoggingOut(false);
+      logoutInProgressRef.current = false;
+    }
+  }, [logout, navigate, isLoggingOut]);
+
+  /* =========================
+     HANDLE NAVIGATION
+  ========================= */
+  const handleNavClick = useCallback((e) => {
+    // Prevent logout from being triggered
+    if (logoutInProgressRef.current || isLoggingOut) {
+      e.preventDefault();
+      return;
+    }
+    // Close menu when navigating
+    closeMenu();
+  }, [isLoggingOut, closeMenu]);
 
   return (
     <>
       {/* =========================
-          BURGER — fixed top-left
+          BURGER MENU BUTTON
       ========================= */}
       <button
         className={`burger ${open ? "burger-hidden" : ""}`}
         onClick={openMenu}
         aria-label="Open menu"
+        disabled={isLoggingOut}
+        type="button"
       >
         <span className="burger-line" />
         <span className="burger-line" />
@@ -120,10 +160,7 @@ export default function Sidebar() {
           OVERLAY
       ========================= */}
       {open && (
-        <div
-          className="overlay"
-          onClick={closeMenu}
-        />
+        <div className="overlay" onClick={closeMenu} />
       )}
 
       {/* =========================
@@ -136,6 +173,7 @@ export default function Sidebar() {
           className="close-btn"
           onClick={closeMenu}
           aria-label="Close menu"
+          type="button"
         >
           <MdClose size={20} />
         </button>
@@ -143,8 +181,10 @@ export default function Sidebar() {
         {/* =========================
             LOGO
         ========================= */}
-        <div className={`sidebar-logo ${open ? "animate-in" : ""}`}
-          style={{ animationDelay: "0.05s" }}>
+        <div
+          className={`sidebar-logo ${open ? "animate-in" : ""}`}
+          style={{ animationDelay: "0.05s" }}
+        >
           <div className="logo-badge">📊</div>
           <div>
             <h2 className="logo-title">Attendance</h2>
@@ -157,16 +197,21 @@ export default function Sidebar() {
         {/* =========================
             USER INFO
         ========================= */}
-        <div className={`sidebar-user ${open ? "animate-in" : ""}`}
-          style={{ animationDelay: "0.1s" }}>
+        <div
+          className={`sidebar-user ${open ? "animate-in" : ""}`}
+          style={{ animationDelay: "0.1s" }}
+        >
           <div className="user-avatar">
             <MdAccountCircle size={38} />
           </div>
           <div className="user-info">
             <p className="welcome-text">Welcome back</p>
             <h4 className="user-name">
-              {user?.name || (isAdmin ? "Administrator" : "Employee")}
+              {profile?.full_name || user?.email || "User"}
             </h4>
+            <p style={{ fontSize: "12px", color: "#999", marginTop: "2px" }}>
+              {isAdmin ? "Administrator" : "Employee"}
+            </p>
           </div>
         </div>
 
@@ -186,7 +231,7 @@ export default function Sidebar() {
                 `link ${isActive ? "active" : ""} ${open ? "animate-in" : ""}`
               }
               style={{ animationDelay: `${0.15 + i * 0.06}s` }}
-              onClick={closeMenu}
+              onClick={handleNavClick}
             >
               <span className="sidebar-icon">{menu.icon}</span>
               <span className="sidebar-label">{menu.label}</span>
@@ -197,11 +242,19 @@ export default function Sidebar() {
         {/* =========================
             FOOTER
         ========================= */}
-        <div className={`sidebar-footer ${open ? "animate-in" : ""}`}
-          style={{ animationDelay: `${0.15 + menus.length * 0.06}s` }}>
-          <button className="logout" onClick={handleLogout}>
+        <div
+          className={`sidebar-footer ${open ? "animate-in" : ""}`}
+          style={{ animationDelay: `${0.15 + menus.length * 0.06}s` }}
+        >
+          <button
+            className="logout"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            title={isLoggingOut ? "Logging out..." : "Click to logout"}
+            type="button"
+          >
             <MdLogout size={20} />
-            <span>Logout</span>
+            <span>{isLoggingOut ? "Logging out..." : "Logout"}</span>
           </button>
           <p className="version-info">v1.0 • System Online</p>
         </div>

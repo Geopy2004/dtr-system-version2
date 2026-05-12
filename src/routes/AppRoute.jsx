@@ -1,71 +1,114 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "./context/AuthContext";
 
-import AuthLayout    from "../layouts/AuthLayout";
-import AdminLayout   from "../layouts/AdminLayout";
-import UserLayout    from "../layouts/UserLayout";
-import ProtectedRoute from "./ProtectedRoute";
+import Login from "./pages/auth/login";
+import Register from "./pages/auth/register";
+import AdminDashboard from "./pages/admin/admindashboard";
+import UserDashboard from "./pages/users/userdashboard";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Loader from "./components/common/loader";
 
-import Login          from "../pages/auth/login";
-import Register       from "../pages/auth/register";
-import AdminDashboard from "../pages/admin/admindashboard";
-import ManageUsers    from "../pages/admin/manageusers";
-import UserDashboard  from "../pages/users/Userdashboard";
-import MyAttendance   from "../pages/users/myattendance";
+function App() {
+  const { loading } = useAuth();
 
-const AppRoute = () => {
-  const { user, profile, loading } = useAuth();
-  if (loading) return null;
-
-  const home = profile?.role === "admin" ? "/admin" : "/dashboard";
+  // Show loader while auth is initializing
+  if (loading) {
+    return <Loader />;
+  }
 
   return (
     <Routes>
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* ROOT - REDIRECT TO LOGIN */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
 
-      {/* ── Auth (public) ── */}
-      <Route element={<AuthLayout />}>
-        <Route
-          path="/login"
-          element={user ? <Navigate to={home} replace /> : <Login />}
-        />
-        <Route
-          path="/register"
-          element={user ? <Navigate to={home} replace /> : <Register />}
-        />
-      </Route>
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* AUTH ROUTES - PUBLIC (always accessible) */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
 
-      {/* ── Admin ── */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* USER ROUTES - PROTECTED (requires authentication) */}
+      {/* ═══════════════════════════════════════════════════════════ */}
       <Route
-        path="/admin"
-        element={
-          <ProtectedRoute adminOnly>
-            <AdminLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<AdminDashboard />} />
-        <Route path="users" element={<ManageUsers />} />
-      </Route>
-
-      {/* ── Employee ── */}
-      <Route
-        path="/dashboard"
+        path="/user/dashboard"
         element={
           <ProtectedRoute>
-            <UserLayout />
+            <UserDashboard />
           </ProtectedRoute>
         }
-      >
-        <Route index element={<UserDashboard />} />
-        <Route path="attendance" element={<MyAttendance />} />
-      </Route>
+      />
 
-      {/* ── Catch-all ── */}
-      <Route path="/"  element={<Navigate to="/login"  replace />} />
-      <Route path="*"  element={<Navigate to="/login"  replace />} />
+      <Route
+        path="/user/myattendance"
+        element={
+          <ProtectedRoute>
+            {/* Add MyAttendance component here */}
+            <div>My Attendance Page</div>
+          </ProtectedRoute>
+        }
+      />
 
+      <Route
+        path="/user/logs"
+        element={
+          <ProtectedRoute>
+            {/* Add Logs component here */}
+            <div>My Logs Page</div>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* ADMIN ROUTES - PROTECTED + ADMIN ONLY */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <Route
+        path="/admin/dashboard"
+        element={
+          <ProtectedRoute adminOnly={true}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute adminOnly={true}>
+            {/* Add ManageUsers component here */}
+            <div>Manage Users Page</div>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/attendance"
+        element={
+          <ProtectedRoute adminOnly={true}>
+            {/* Add AllAttendance component here */}
+            <div>All Attendance Page</div>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/logs"
+        element={
+          <ProtectedRoute adminOnly={true}>
+            {/* Add SystemLogs component here */}
+            <div>System Logs Page</div>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* FALLBACK - 404 REDIRECT TO LOGIN */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
-};
+}
 
-export default AppRoute;
+export default App;

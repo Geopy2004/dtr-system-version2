@@ -172,4 +172,60 @@ export const attendanceAPI = {
     if (error) throw error;
     return data || [];
   },
+
+  // ✅ NEW METHOD - Get current user's attendance with stats
+  async getMyAttendance(params) {
+    const { userId, startDate, endDate, limit } = params;
+
+    // Validate userId
+    if (!userId) {
+      throw new Error("userId is required");
+    }
+
+    // Build the query
+    let query = supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", userId);
+
+    // Add date range filters if provided
+    if (startDate) {
+      query = query.gte("date", startDate);
+    }
+    if (endDate) {
+      query = query.lte("date", endDate);
+    }
+
+    // Order by date descending (most recent first)
+    query = query.order("date", { ascending: false });
+
+    // Add limit if provided (e.g., for "recent" records)
+    if (limit) {
+      query = query.limit(limit);
+    }
+
+    // Execute query
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    const records = data || [];
+
+    // Calculate statistics from the records
+    const stats = {
+      total_days: records.length,
+      present: records.filter(r => r.status === "present").length,
+      late: records.filter(r => r.status === "late").length,
+      absent: records.filter(r => r.status === "absent").length,
+      half_day: records.filter(r => r.status === "half-day" || r.status === "halfday").length,
+      total_late_minutes: records.reduce((sum, r) => sum + (r.late_minutes || 0), 0),
+      total_hours: records.reduce((sum, r) => sum + (parseFloat(r.hours_worked) || 0), 0).toFixed(2),
+    };
+
+    // Return attendance records and calculated stats
+    return {
+      attendance: records,
+      stats: stats,
+    };
+  },
 };

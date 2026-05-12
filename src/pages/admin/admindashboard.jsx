@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import AttendanceTable from "../../components/admin/attendancetable";
+import AttendanceTable from "./attendancetable";
 import { attendanceAPI, profileAPI } from "../../services/api";
 import "./admindashboard.css";
 

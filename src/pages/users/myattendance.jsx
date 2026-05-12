@@ -1,327 +1,254 @@
-import { useState, useEffect, useMemo } from "react";
-import { format, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
-import Sidebar from "../../components/common/Sidebar.jsx";
+import { useState, useEffect } from "react";
 import { attendanceAPI } from "../../services/api";
-import styles from "./MyAttendance.module.css";
+import toast from "react-hot-toast";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import TimeInOut from "./timeinout.jsx";
+import "./myattendance.css";
 
-function statusClass(status) {
-  if (!status) return "";
-
-  switch (status.toLowerCase()) {
-    case "present":
-      return styles.statusPresent;
-    case "late":
-      return styles.statusLate;
-    case "absent":
-      return styles.statusAbsent;
-    case "half-day":
-    case "halfday":
-      return styles.statusHalfDay;
-    default:
-      return "";
-  }
-}
-
-function safeFormat(value, fmt) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-  if (isNaN(date.getTime())) return "—";
-
-  return format(date, fmt);
-}
-
+/**
+ * MyAttendance Component
+ * 
+ * Displays:
+ * - TimeInOut widget for clocking in/out
+ * - Monthly statistics (Total, Present, Late, Absent)
+ * - Attendance history table with filtering by month
+ * 
+ * Updates automatically when user times in/out
+ */
 export default function MyAttendance() {
-  const [attendance, setAttendance] = useState([]);
+  const [attendanceList, setAttendanceList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const [todayAttendance, setTodayAttendance] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  // Fetch today's attendance
+  // ─────────────────────────────
+  // FETCH ATTENDANCE HISTORY
+  // ─────────────────────────────
   useEffect(() => {
-    async function fetchTodayAttendance() {
-      try {
-        const today = format(new Date(), "yyyy-MM-dd");
-        const result = await attendanceAPI.getMyAttendance({
-          startDate: today,
-          endDate: today,
-        });
-        
-        if (result?.attendance && result.attendance.length > 0) {
-          setTodayAttendance(result.attendance[0]);
-        } else {
-          setTodayAttendance(null);
-        }
-      } catch (err) {
-        console.error("Failed to fetch today's attendance:", err);
-      }
-    }
-    
-    fetchTodayAttendance();
-  }, []);
-
-  // Fetch attendance for selected month
-  useEffect(() => {
-    async function loadAttendance() {
+    const fetchAttendanceHistory = async () => {
       try {
         setLoading(true);
-        setError("");
 
-        const start = startOfMonth(selectedMonth);
-        const end = endOfMonth(selectedMonth);
+        const startDate = format(startOfMonth(currentMonth), "yyyy-MM-dd");
+        const endDate = format(endOfMonth(currentMonth), "yyyy-MM-dd");
 
         const result = await attendanceAPI.getMyAttendance({
-          startDate: format(start, "yyyy-MM-dd"),
-          endDate: format(end, "yyyy-MM-dd"),
+          startDate,
+          endDate,
         });
 
-        setAttendance(result?.attendance ?? []);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load attendance records.");
+        console.log("ATTENDANCE HISTORY:", result);
+
+        // Handle different API response formats
+        const attendance = Array.isArray(result?.attendance)
+          ? result.attendance
+          : Array.isArray(result?.data)
+          ? result.data
+          : [];
+
+        setAttendanceList(attendance);
+      } catch (error) {
+        console.error("Fetch error:", error);
+        toast.error("Failed to load attendance history");
       } finally {
         setLoading(false);
       }
-    }
-
-    loadAttendance();
-  }, [selectedMonth]);
-
-  // Filter attendance based on search and status
-  const filteredAttendance = useMemo(() => {
-    let filtered = attendance;
-
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(a => 
-        a.status?.toLowerCase() === statusFilter.toLowerCase()
-      );
-    }
-
-    if (searchTerm) {
-      filtered = filtered.filter(a => 
-        format(parseISO(a.date), "MMM dd, yyyy").toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    return filtered;
-  }, [attendance, statusFilter, searchTerm]);
-
-  // Calculate statistics
-  const stats = useMemo(() => {
-    const total = attendance.length;
-    const present = attendance.filter(a => 
-      a.status?.toLowerCase() === "present"
-    ).length;
-    const late = attendance.filter(a => 
-      a.status?.toLowerCase() === "late"
-    ).length;
-    const absent = attendance.filter(a => 
-      a.status?.toLowerCase() === "absent"
-    ).length;
-    const halfDay = attendance.filter(a => 
-      a.status?.toLowerCase() === "half-day" || a.status?.toLowerCase() === "halfday"
-    ).length;
-
-    const totalLateMinutes = attendance.reduce((sum, a) => sum + (a.late_minutes || 0), 0);
-    const attendanceRate = total === 0 ? 0 : Math.round((present / total) * 100);
-
-    return {
-      total,
-      present,
-      late,
-      absent,
-      halfDay,
-      totalLateMinutes,
-      attendanceRate
     };
-  }, [attendance]);
 
-  const handleMonthChange = (direction) => {
-    if (direction === "prev") {
-      setSelectedMonth(subMonths(selectedMonth, 1));
-    } else {
-      setSelectedMonth(subMonths(selectedMonth, -1));
+    fetchAttendanceHistory();
+  }, [currentMonth]);
+
+  // ─────────────────────────────
+  // HANDLE ATTENDANCE UPDATE
+  // ─────────────────────────────
+  // Called when user times in or out
+  const handleAttendanceUpdate = (attendance) => {
+    if (attendance) {
+      const today = format(new Date(), "yyyy-MM-dd");
+      
+      // Find and update today's record
+      const existingIndex = attendanceList.findIndex(
+        (record) =>
+          format(new Date(record.date || record.created_at), "yyyy-MM-dd") ===
+          today
+      );
+
+      if (existingIndex >= 0) {
+        // Update existing record
+        const updated = [...attendanceList];
+        updated[existingIndex] = attendance;
+        setAttendanceList(updated);
+      } else {
+        // Add new record if it doesn't exist
+        setAttendanceList([attendance, ...attendanceList]);
+      }
     }
   };
 
+  // ─────────────────────────────
+  // MONTH NAVIGATION
+  // ─────────────────────────────
+  const handlePreviousMonth = () => {
+    setCurrentMonth(
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1)
+    );
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1)
+    );
+  };
+
+  // ─────────────────────────────
+  // CALCULATE STATISTICS
+  // ─────────────────────────────
+  const stats = {
+    total: attendanceList.length,
+    present: attendanceList.filter(
+      (record) => record.status === "present" || record.time_in
+    ).length,
+    absent: attendanceList.filter(
+      (record) => record.status === "absent" || (!record.time_in && record.date)
+    ).length,
+    late: attendanceList.filter((record) => record.status === "late").length,
+  };
+
+  // ─────────────────────────────
+  // RENDER
+  // ─────────────────────────────
   return (
-    <div className={styles.layout}>
-      <Sidebar />
-      
-      <div className={styles.mainContent}>
-        <div className={styles.container}>
-          {/* Header */}
-          <header className={styles.header}>
-            <h1 className={styles.title}>My Attendance Record</h1>
-            <p className={styles.subtitle}>Track your attendance history and performance</p>
-          </header>
-
-          {/* Today's Attendance Card */}
-          <div className={styles.todayCard}>
-            <div className={styles.todayHeader}>
-              <h2>Today's Attendance</h2>
-              <span className={styles.todayDate}>
-                {format(new Date(), "EEEE, MMMM d, yyyy")}
-              </span>
-            </div>
-            
-            {todayAttendance ? (
-              <div className={styles.todayInfo}>
-                <div className={styles.todayTime}>
-                  <div className={styles.timeItem}>
-                    <span className={styles.timeLabel}>Time In:</span>
-                    <strong>{safeFormat(todayAttendance.time_in, "hh:mm a")}</strong>
-                  </div>
-                  <div className={styles.timeItem}>
-                    <span className={styles.timeLabel}>Time Out:</span>
-                    <strong>{safeFormat(todayAttendance.time_out, "hh:mm a")}</strong>
-                  </div>
-                </div>
-                <div className={styles.todayStatus}>
-                  <span className={`${styles.statusBadge} ${statusClass(todayAttendance.status)}`}>
-                    {todayAttendance.status || "Present"}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className={styles.todayEmpty}>
-                <p>No attendance record for today yet.</p>
-                <small>Please check in when you start your work day.</small>
-              </div>
-            )}
-          </div>
-
-          {/* Statistics Summary */}
-          <div className={styles.statsGrid}>
-            <div className={styles.statBox}>
-              <div className={styles.statValue}>{stats.total}</div>
-              <div className={styles.statLabel}>Total Days</div>
-            </div>
-            <div className={`${styles.statBox} ${styles.statPresent}`}>
-              <div className={styles.statValue}>{stats.present}</div>
-              <div className={styles.statLabel}>Present</div>
-            </div>
-            <div className={`${styles.statBox} ${styles.statLate}`}>
-              <div className={styles.statValue}>{stats.late}</div>
-              <div className={styles.statLabel}>Late</div>
-            </div>
-            <div className={`${styles.statBox} ${styles.statAbsent}`}>
-              <div className={styles.statValue}>{stats.absent}</div>
-              <div className={styles.statLabel}>Absent</div>
-            </div>
-            <div className={styles.statBox}>
-              <div className={styles.statValue}>{stats.halfDay}</div>
-              <div className={styles.statLabel}>Half Day</div>
-            </div>
-            <div className={styles.statBox}>
-              <div className={styles.statValue}>{stats.totalLateMinutes}</div>
-              <div className={styles.statLabel}>Late Minutes</div>
-            </div>
-          </div>
-
-          {/* Rate Card */}
-          <div className={styles.rateCard}>
-            <div className={styles.rateHeader}>
-              <h3>Attendance Rate</h3>
-              <strong className={styles.ratePercent}>{stats.attendanceRate}%</strong>
-            </div>
-            <div className={styles.rateTrack}>
-              <div 
-                className={styles.rateFill} 
-                style={{ width: `${stats.attendanceRate}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Filters and Controls */}
-          <div className={styles.controls}>
-            <div className={styles.monthNavigation}>
-              <button onClick={() => handleMonthChange("prev")} className={styles.navButton}>
-                ← Previous Month
-              </button>
-              <span className={styles.currentMonth}>
-                {format(selectedMonth, "MMMM yyyy")}
-              </span>
-              <button onClick={() => handleMonthChange("next")} className={styles.navButton}>
-                Next Month →
-              </button>
-            </div>
-
-            <div className={styles.filters}>
-              <input
-                type="text"
-                placeholder="Search by date..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className={styles.searchInput}
-              />
-              
-              <select 
-                value={statusFilter} 
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className={styles.filterSelect}
-              >
-                <option value="all">All Status</option>
-                <option value="present">Present</option>
-                <option value="late">Late</option>
-                <option value="absent">Absent</option>
-                <option value="half-day">Half Day</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Attendance Table */}
-          {loading ? (
-            <div className={styles.loadingState}>Loading attendance records...</div>
-          ) : error ? (
-            <div className={styles.errorState}>{error}</div>
-          ) : (
-            <div className={styles.tableWrapper}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Date</th>
-                    <th>Day</th>
-                    <th>Time In</th>
-                    <th>Time Out</th>
-                    <th>Status</th>
-                    <th>Late Minutes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAttendance.length > 0 ? (
-                    filteredAttendance.map((record, index) => (
-                      <tr key={record.id}>
-                        <td>{index + 1}</td>
-                        <td>{safeFormat(record.date, "MMM dd, yyyy")}</td>
-                        <td>{safeFormat(record.date, "EEEE")}</td>
-                        <td>{safeFormat(record.time_in, "hh:mm a")}</td>
-                        <td>{safeFormat(record.time_out, "hh:mm a")}</td>
-                        <td>
-                          <span className={`${styles.statusBadge} ${statusClass(record.status)}`}>
-                            {record.status || "Present"}
-                          </span>
-                        </td>
-                        <td>{record.late_minutes || "—"}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="7" className={styles.noData}>
-                        No attendance records found for this period
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+    <div className="myattendance-container">
+      {/* HEADER */}
+      <div className="attendance-header">
+        <h2>My Attendance</h2>
+        <p className="subtitle">Track your attendance and time records</p>
       </div>
+
+      {/* TIME IN/OUT SECTION */}
+      <section className="timeinout-section">
+        <TimeInOut onAttendanceUpdate={handleAttendanceUpdate} />
+      </section>
+
+      {/* STATISTICS SECTION */}
+      <section className="statistics-section">
+        <h3>Monthly Statistics</h3>
+        <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-label">Total Days</div>
+            <div className="stat-value">{stats.total}</div>
+          </div>
+          <div className="stat-card present">
+            <div className="stat-label">Present</div>
+            <div className="stat-value">{stats.present}</div>
+          </div>
+          <div className="stat-card late">
+            <div className="stat-label">Late</div>
+            <div className="stat-value">{stats.late}</div>
+          </div>
+          <div className="stat-card absent">
+            <div className="stat-label">Absent</div>
+            <div className="stat-value">{stats.absent}</div>
+          </div>
+        </div>
+      </section>
+
+      {/* ATTENDANCE HISTORY SECTION */}
+      <section className="history-section">
+        <div className="history-header">
+          <h3>Attendance History</h3>
+          <div className="month-navigation">
+            <button
+              onClick={handlePreviousMonth}
+              className="nav-btn"
+              type="button"
+            >
+              ← Previous
+            </button>
+            <span className="current-month">
+              {format(currentMonth, "MMMM yyyy")}
+            </span>
+            <button onClick={handleNextMonth} className="nav-btn" type="button">
+              Next →
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="loading">
+            <p>Loading attendance records...</p>
+          </div>
+        ) : attendanceList.length > 0 ? (
+          <div className="attendance-table-wrapper">
+            <table className="attendance-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Time In</th>
+                  <th>Time Out</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendanceList.map((record, index) => {
+                  const timeIn = record.time_in
+                    ? new Date(record.time_in)
+                    : null;
+                  const timeOut = record.time_out
+                    ? new Date(record.time_out)
+                    : null;
+                  const duration =
+                    timeIn && timeOut
+                      ? Math.round((timeOut - timeIn) / (1000 * 60)) // minutes
+                      : null;
+
+                  return (
+                    <tr
+                      key={index}
+                      className={`status-${record.status || "absent"}`}
+                    >
+                      <td className="date-cell">
+                        {format(
+                          new Date(record.date || record.created_at),
+                          "MMM dd, yyyy"
+                        )}
+                      </td>
+                      <td className="time-cell">
+                        {timeIn ? format(timeIn, "hh:mm:ss a") : "—"}
+                      </td>
+                      <td className="time-cell">
+                        {timeOut ? format(timeOut, "hh:mm:ss a") : "—"}
+                      </td>
+                      <td className="duration-cell">
+                        {duration ? `${duration}m` : "—"}
+                      </td>
+                      <td className="status-cell">
+                        <span
+                          className={`status-badge status-${
+                            record.status || "absent"
+                          }`}
+                        >
+                          {record.status === "late"
+                            ? `Late (${record.late_minutes}m)`
+                            : record.status === "present"
+                            ? "Present"
+                            : "Absent"}
+                        </span>
+                      </td>
+                      <td className="notes-cell">{record.notes || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="no-records">
+            <p>No attendance records for {format(currentMonth, "MMMM yyyy")}</p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
