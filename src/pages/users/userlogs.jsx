@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import "./userlogs.css";
+import Sidebar from "../../components/common/Sidebar";
 
 export default function MyLogs() {
   const { user } = useAuth();
@@ -78,97 +79,103 @@ export default function MyLogs() {
 
   if (loading) {
     return (
-      <div className="logs-container">
-        <div className="loading">Loading your logs...</div>
-      </div>
+      <>
+        <Sidebar />
+        <div className="logs-container">
+          <div className="loading">Loading your logs...</div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="logs-container">
-      <div className="logs-header">
-        <h1>My Activity Logs</h1>
-        <p>View all your attendance and system activity</p>
-      </div>
-
-      <div className="logs-controls">
-        <div className="search-box">
-          <input
-            type="text"
-            placeholder="Search logs..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+    <>
+      <Sidebar />
+      <div className="logs-container">
+        <div className="logs-header">
+          <h1>My Activity Logs</h1>
+          <p>View all your attendance and system activity</p>
         </div>
 
-        <div className="filter-buttons">
-          <button
-            className={`filter-btn ${filter === "all" ? "active" : ""}`}
-            onClick={() => setFilter("all")}
-          >
-            All Logs
-          </button>
-          <button
-            className={`filter-btn ${filter === "success" ? "active" : ""}`}
-            onClick={() => setFilter("success")}
-          >
-            Success
-          </button>
-          <button
-            className={`filter-btn ${filter === "pending" ? "active" : ""}`}
-            onClick={() => setFilter("pending")}
-          >
-            Pending
-          </button>
-          <button
-            className={`filter-btn ${filter === "failed" ? "active" : ""}`}
-            onClick={() => setFilter("failed")}
-          >
-            Failed
-          </button>
-        </div>
-      </div>
-
-      <div className="logs-table-wrapper">
-        {filteredLogs.length > 0 ? (
-          <table className="logs-table">
-            <thead>
-              <tr>
-                <th>Action</th>
-                <th>Status</th>
-                <th>Date & Time</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLogs.map((log) => (
-                <tr key={log.id} className={`log-row ${log.status}`}>
-                  <td className="action-cell">
-                    <span className="action-badge">{log.action}</span>
-                  </td>
-                  <td className="status-cell">
-                    <span className={`status-badge ${log.status}`}>
-                      {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="timestamp-cell">
-                    {log.timestamp.toLocaleString()}
-                  </td>
-                  <td className="details-cell">{log.details}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="no-logs">
-            <p>No logs found matching your criteria</p>
+        <div className="logs-controls">
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Search logs..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-        )}
-      </div>
 
-      <div className="logs-footer">
-        <p>Total Logs: <strong>{filteredLogs.length}</strong></p>
+          <div className="filter-buttons">
+            <button
+              className={`filter-btn ${filter === "all" ? "active" : ""}`}
+              onClick={() => setFilter("all")}
+            >
+              All Logs
+            </button>
+            <button
+              className={`filter-btn ${filter === "success" ? "active" : ""}`}
+              onClick={() => setFilter("success")}
+            >
+              Success
+            </button>
+            <button
+              className={`filter-btn ${filter === "pending" ? "active" : ""}`}
+              onClick={() => setFilter("pending")}
+            >
+              Pending
+            </button>
+            <button
+              className={`filter-btn ${filter === "failed" ? "active" : ""}`}
+              onClick={() => setFilter("failed")}
+            >
+              Failed
+            </button>
+          </div>
+        </div>
+
+        <div className="logs-table-wrapper">
+          {filteredLogs.length > 0 ? (
+            <table className="logs-table">
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>Status</th>
+                  <th>Date & Time</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLogs.map((log) => (
+                  <tr key={log.id} className={`log-row ${log.status}`}>
+                    <td className="action-cell">
+                      <span className="action-badge">{log.action}</span>
+                    </td>
+                    <td className="status-cell">
+                      <span className={`status-badge ${log.status}`}>
+                        {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
+                      </span>
+                    </td>
+                    <td className="timestamp-cell">
+                      {log.timestamp.toLocaleString()}
+                    </td>
+                    <td className="details-cell">{log.details}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="no-logs">
+              <p>No logs found matching your criteria</p>
+            </div>
+          )}
+        </div>
+
+        <div className="logs-footer">
+          <p>Total Logs: <strong>{filteredLogs.length}</strong></p>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
