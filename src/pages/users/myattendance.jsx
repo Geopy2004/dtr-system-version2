@@ -9,10 +9,13 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiClock,
+  FiEye,
   FiFileText,
+  FiPrinter,
   FiTrendingUp,
   FiUserCheck,
   FiUserX,
+  FiX,
   FiXCircle,
 } from "react-icons/fi";
 import { HiOutlineOfficeBuilding } from "react-icons/hi";
@@ -25,6 +28,7 @@ export default function MyAttendance() {
   const [attendanceList, setAttendanceList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedRecord, setSelectedRecord] = useState(null);
 
   const fetchAttendanceHistory = useCallback(async () => {
     try {
@@ -102,6 +106,44 @@ export default function MyAttendance() {
     );
   }, [currentMonth]);
 
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
+
+  const getRecordDuration = useCallback((record) => {
+    const timeIn = record?.morning_time_in || record?.time_in;
+    const timeOut = record?.afternoon_time_out || record?.time_out;
+    const start = timeIn ? new Date(timeIn) : null;
+    const end = timeOut ? new Date(timeOut) : null;
+
+    if (!start || !end) return "-";
+
+    const minutes = Math.round((end - start) / (1000 * 60));
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+
+    if (hours <= 0) return `${minutes}m`;
+    return `${hours}h ${remainingMinutes}m`;
+  }, []);
+
+  const getRecordStatusLabel = useCallback((record) => {
+    if (record?.status === "late") {
+      return `Late (${record.late_minutes || 0}m)`;
+    }
+
+    if (record?.status === "present") return "Present";
+    if (record?.status === "half-day" || record?.status === "halfday") {
+      return "Half Day";
+    }
+
+    return "Absent";
+  }, []);
+
+  const formatRecordTime = useCallback((record, field, fallbackField) => {
+    const value = record?.[field] || record?.[fallbackField];
+    return value ? format(new Date(value), "hh:mm:ss a") : "-";
+  }, []);
+
   const stats = {
     total: attendanceList.length,
     present: attendanceList.filter(
@@ -113,7 +155,9 @@ export default function MyAttendance() {
     late: attendanceList.filter((record) => record.status === "late").length,
   };
   const completed = attendanceList.filter(
-    (record) => record.time_in && record.time_out
+    (record) =>
+      (record.morning_time_in || record.time_in) &&
+      (record.afternoon_time_out || record.time_out)
   ).length;
   const completionRate = stats.total
     ? Math.round((completed / stats.total) * 100)
@@ -212,6 +256,17 @@ export default function MyAttendance() {
 
             <div className="month-navigation">
               <button
+                onClick={handlePrint}
+                className="nav-btn print-btn"
+                type="button"
+                disabled={loading || attendanceList.length === 0}
+                title="Print attendance"
+              >
+                <FiPrinter />
+                Print
+              </button>
+
+              <button
                 onClick={handlePreviousMonth}
                 className="nav-btn"
                 type="button"
@@ -248,10 +303,16 @@ export default function MyAttendance() {
                       <FiCalendar /> Date
                     </th>
                     <th>
-                      <FiUserCheck /> Time In
+                      <FiUserCheck /> Morning In
                     </th>
                     <th>
-                      <FiUserX /> Time Out
+                      <FiUserX /> Lunch Out
+                    </th>
+                    <th>
+                      <FiUserCheck /> Lunch In
+                    </th>
+                    <th>
+                      <FiUserX /> Afternoon Out
                     </th>
                     <th>
                       <FiClock /> Duration
@@ -260,22 +321,12 @@ export default function MyAttendance() {
                     <th>
                       <FiFileText /> Notes
                     </th>
+                    <th>View</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {attendanceList.map((record, index) => {
-                    const timeIn = record.time_in
-                      ? new Date(record.time_in)
-                      : null;
-                    const timeOut = record.time_out
-                      ? new Date(record.time_out)
-                      : null;
-                    const duration =
-                      timeIn && timeOut
-                        ? Math.round((timeOut - timeIn) / (1000 * 60))
-                        : null;
-
                     return (
                       <tr
                         key={record.id || index}
@@ -288,13 +339,23 @@ export default function MyAttendance() {
                           )}
                         </td>
                         <td className="time-cell">
-                          {timeIn ? format(timeIn, "hh:mm:ss a") : "-"}
+                          {formatRecordTime(record, "morning_time_in", "time_in")}
                         </td>
                         <td className="time-cell">
-                          {timeOut ? format(timeOut, "hh:mm:ss a") : "-"}
+                          {formatRecordTime(record, "lunch_time_out")}
+                        </td>
+                        <td className="time-cell">
+                          {formatRecordTime(record, "lunch_time_in")}
+                        </td>
+                        <td className="time-cell">
+                          {formatRecordTime(
+                            record,
+                            "afternoon_time_out",
+                            "time_out"
+                          )}
                         </td>
                         <td className="duration-cell">
-                          {duration ? `${duration}m` : "-"}
+                          {getRecordDuration(record)}
                         </td>
                         <td className="status-cell">
                           <span
@@ -302,14 +363,21 @@ export default function MyAttendance() {
                               record.status || "absent"
                             }`}
                           >
-                            {record.status === "late"
-                              ? `Late (${record.late_minutes || 0}m)`
-                              : record.status === "present"
-                              ? "Present"
-                              : "Absent"}
+                            {getRecordStatusLabel(record)}
                           </span>
                         </td>
                         <td className="notes-cell">{record.notes || "-"}</td>
+                        <td className="action-cell">
+                          <button
+                            className="icon-action-btn"
+                            type="button"
+                            onClick={() => setSelectedRecord(record)}
+                            title="View attendance details"
+                            aria-label="View attendance details"
+                          >
+                            <FiEye />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -324,6 +392,97 @@ export default function MyAttendance() {
           )}
         </section>
       </main>
+
+      {selectedRecord && (
+        <div
+          className="attendance-modal-backdrop"
+          role="presentation"
+          onClick={() => setSelectedRecord(null)}
+        >
+          <section
+            className="attendance-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="attendance-details-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="attendance-modal-header">
+              <div>
+                <span className="attendance-eyebrow">Attendance Details</span>
+                <h3 id="attendance-details-title">
+                  {format(
+                    new Date(selectedRecord.date || selectedRecord.created_at),
+                    "MMMM dd, yyyy"
+                  )}
+                </h3>
+              </div>
+
+              <button
+                className="icon-action-btn"
+                type="button"
+                onClick={() => setSelectedRecord(null)}
+                title="Close details"
+                aria-label="Close details"
+              >
+                <FiX />
+              </button>
+            </div>
+
+            <div className="details-grid">
+              <div className="detail-item">
+                <span>Date</span>
+                <strong>
+                  {format(
+                    new Date(selectedRecord.date || selectedRecord.created_at),
+                    "MMM dd, yyyy"
+                  )}
+                </strong>
+              </div>
+              <div className="detail-item">
+                <span>Status</span>
+                <strong>{getRecordStatusLabel(selectedRecord)}</strong>
+              </div>
+              <div className="detail-item">
+                <span>Morning In</span>
+                <strong>
+                  {formatRecordTime(selectedRecord, "morning_time_in", "time_in")}
+                </strong>
+              </div>
+              <div className="detail-item">
+                <span>Lunch Out</span>
+                <strong>{formatRecordTime(selectedRecord, "lunch_time_out")}</strong>
+              </div>
+              <div className="detail-item">
+                <span>Lunch In</span>
+                <strong>{formatRecordTime(selectedRecord, "lunch_time_in")}</strong>
+              </div>
+              <div className="detail-item">
+                <span>Afternoon Out</span>
+                <strong>
+                  {formatRecordTime(
+                    selectedRecord,
+                    "afternoon_time_out",
+                    "time_out"
+                  )}
+                </strong>
+              </div>
+              <div className="detail-item">
+                <span>Duration</span>
+                <strong>{getRecordDuration(selectedRecord)}</strong>
+              </div>
+              <div className="detail-item">
+                <span>Late Minutes</span>
+                <strong>{selectedRecord.late_minutes || 0}m</strong>
+              </div>
+            </div>
+
+            <div className="detail-notes">
+              <span>Notes</span>
+              <p>{selectedRecord.notes || "No notes recorded."}</p>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

@@ -77,7 +77,6 @@ const Register = () => {
     lastName: "",
     email: "",
     department: "",
-    role: "employee",
     password: "",
     confirm: "",
   });
@@ -138,7 +137,6 @@ const Register = () => {
             data: {
               full_name: `${form.firstName.trim()} ${form.lastName.trim()}`,
               department: form.department,
-              role: form.role,
             },
           },
         });
@@ -153,7 +151,7 @@ const Register = () => {
             email: form.email.trim().toLowerCase(),
             full_name: `${form.firstName.trim()} ${form.lastName.trim()}`,
             department: form.department,
-            role: form.role,
+            role: "employee",
           });
 
         if (profileError)
@@ -211,7 +209,7 @@ const Register = () => {
           disabled={loading}
         />
 
-        {/* Department + Role */}
+        {/* Department */}
         <div className="field-row">
           <select
             value={form.department}
@@ -224,15 +222,6 @@ const Register = () => {
                 {d}
               </option>
             ))}
-          </select>
-
-          <select
-            value={form.role}
-            onChange={set("role")}
-            disabled={loading}
-          >
-            <option value="employee">Employee</option>
-            <option value="admin">Admin</option>
           </select>
         </div>
 

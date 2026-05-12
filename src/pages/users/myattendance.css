@@ -272,6 +272,17 @@
   transform: translateY(-1px);
 }
 
+.nav-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.print-btn {
+  color: var(--attendance-ink);
+  border-color: rgba(108, 99, 255, 0.32);
+}
+
 .attendance-loading {
   min-height: 220px;
   position: relative;
@@ -286,7 +297,7 @@
 
 .attendance-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 1040px;
   border-collapse: collapse;
   background: var(--attendance-panel);
 }
@@ -368,6 +379,103 @@
 .status-badge.status-absent {
   background: var(--attendance-red-soft);
   color: var(--attendance-red);
+}
+
+.action-cell {
+  width: 72px;
+}
+
+.icon-action-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--attendance-line);
+  border-radius: 10px;
+  background: var(--attendance-panel-soft);
+  color: var(--attendance-muted);
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.icon-action-btn:hover {
+  border-color: rgba(108, 99, 255, 0.4);
+  color: var(--attendance-ink);
+  transform: translateY(-1px);
+}
+
+.attendance-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(3, 5, 9, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.attendance-modal {
+  width: min(620px, 100%);
+  border: 1px solid var(--attendance-line-strong);
+  border-radius: 18px;
+  background: var(--attendance-panel);
+  color: var(--attendance-ink);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
+  padding: 22px;
+}
+
+.attendance-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.attendance-modal-header h3 {
+  margin: 0;
+  color: var(--attendance-ink);
+  font-size: 24px;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-item,
+.detail-notes {
+  border: 1px solid var(--attendance-line);
+  border-radius: 12px;
+  background: var(--attendance-panel-soft);
+  padding: 14px;
+}
+
+.detail-item span,
+.detail-notes span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--attendance-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.detail-item strong {
+  color: var(--attendance-ink);
+  font-size: 15px;
+}
+
+.detail-notes {
+  margin-top: 12px;
+}
+
+.detail-notes p {
+  margin: 0;
+  color: var(--attendance-ink);
+  line-height: 1.5;
 }
 
 .no-records {
@@ -464,8 +572,98 @@
     grid-template-columns: 1fr;
   }
 
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
+
   .nav-btn,
   .current-month {
     flex: 1;
+  }
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  .attendance-layout {
+    min-height: auto;
+    background: #ffffff;
+    color: #111827;
+  }
+
+  .sidebar,
+  .attendance-header,
+  .attendance-overview-grid,
+  .month-navigation,
+  .attendance-modal-backdrop,
+  .action-cell,
+  .attendance-table th:last-child,
+  .attendance-table td:last-child {
+    display: none !important;
+  }
+
+  .myattendance-container {
+    min-height: auto;
+    padding: 0;
+  }
+
+  .history-section {
+    min-height: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #ffffff;
+    overflow: visible;
+  }
+
+  .history-header {
+    display: block;
+    margin-bottom: 14px;
+  }
+
+  .history-header h3 {
+    color: #111827;
+    font-size: 20px;
+  }
+
+  .section-icon {
+    color: #111827;
+  }
+
+  .attendance-table-wrapper {
+    overflow: visible;
+    border: 1px solid #d1d5db;
+    border-radius: 0;
+  }
+
+  .attendance-table {
+    min-width: 0;
+    background: #ffffff;
+  }
+
+  .attendance-table th {
+    background: #f3f4f6;
+    color: #111827;
+    border-bottom: 1px solid #d1d5db;
+  }
+
+  .attendance-table td {
+    color: #111827;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .notes-cell {
+    max-width: none;
+    color: #111827;
+    white-space: normal;
+  }
+
+  .status-badge {
+    border: 1px solid #d1d5db;
+    background: #ffffff !important;
+    color: #111827 !important;
   }
 }

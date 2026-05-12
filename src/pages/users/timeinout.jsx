@@ -54,13 +54,18 @@ export default function TimeInOut({ onAttendanceUpdate }) {
     });
   }, [fetchTodayAttendance]);
 
-  const handleTimeIn = async () => {
+  const getSessionTime = useCallback(
+    (field, fallbackField) => todayAttendance?.[field] || todayAttendance?.[fallbackField],
+    [todayAttendance]
+  );
+
+  const handleAttendanceAction = async (action, successMessage) => {
     setLoading(true);
 
     try {
-      await attendanceAPI.timeIn("", notes);
+      await action();
 
-      toast.success("Time in successful!", {
+      toast.success(successMessage, {
         duration: 3000,
       });
 
@@ -73,42 +78,36 @@ export default function TimeInOut({ onAttendanceUpdate }) {
       onAttendanceUpdate?.(updated);
     } catch (error) {
       console.error(error);
-      toast.error(error?.message || "Time in failed");
+      toast.error(error?.message || "Attendance action failed");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleTimeOut = async () => {
-    setLoading(true);
+  const handleMorningIn = () =>
+    handleAttendanceAction(
+      () => attendanceAPI.morningIn("", notes),
+      "Morning time in successful!"
+    );
 
-    try {
-      await attendanceAPI.timeOut();
+  const handleLunchOut = () =>
+    handleAttendanceAction(attendanceAPI.lunchOut, "Lunch time out successful!");
 
-      toast.success("Time out successful!", {
-        duration: 3000,
-      });
+  const handleLunchIn = () =>
+    handleAttendanceAction(attendanceAPI.lunchIn, "Lunch time in successful!");
 
-      setShowMenu(false);
-
-      const updated = await fetchTodayAttendance();
-      setTodayAttendance(updated);
-      onAttendanceUpdate?.(updated);
-    } catch (error) {
-      console.error(error);
-      toast.error(error?.message || "Time out failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleAfternoonOut = () =>
+    handleAttendanceAction(
+      attendanceAPI.afternoonOut,
+      "Afternoon time out successful!"
+    );
 
   const calculateDuration = () => {
     if (!todayAttendance?.time_in) return null;
 
-    const timeIn = new Date(todayAttendance.time_in);
-    const timeOut = todayAttendance.time_out
-      ? new Date(todayAttendance.time_out)
-      : currentTime;
+    const timeIn = new Date(getSessionTime("morning_time_in", "time_in"));
+    const endTime = getSessionTime("afternoon_time_out", "time_out");
+    const timeOut = endTime ? new Date(endTime) : currentTime;
     const duration = Math.floor((timeOut - timeIn) / 1000);
     const hours = Math.floor(duration / 3600);
     const minutes = Math.floor((duration % 3600) / 60);
@@ -118,10 +117,15 @@ export default function TimeInOut({ onAttendanceUpdate }) {
 
   const getStatusColor = () => {
     if (!todayAttendance) return "neutral";
-    if (todayAttendance.time_out) return "completed";
+    if (getSessionTime("afternoon_time_out", "time_out")) return "completed";
     if (todayAttendance.status === "late") return "late";
     return "present";
   };
+
+  const morningIn = getSessionTime("morning_time_in", "time_in");
+  const lunchOut = getSessionTime("lunch_time_out");
+  const lunchIn = getSessionTime("lunch_time_in");
+  const afternoonOut = getSessionTime("afternoon_time_out", "time_out");
 
   if (initialLoading) {
     return (
@@ -156,25 +160,47 @@ export default function TimeInOut({ onAttendanceUpdate }) {
           <div className="quick-menu">
             <button
               className="menu-item clock-in"
-              onClick={handleTimeIn}
+              onClick={handleMorningIn}
               disabled={loading || todayAttendance}
               type="button"
             >
               <span className="menu-icon">
                 <FiLogIn />
               </span>
-              <span className="menu-text">Clock In</span>
+              <span className="menu-text">Morning In</span>
             </button>
             <button
               className="menu-item clock-out"
-              onClick={handleTimeOut}
-              disabled={loading || !todayAttendance || todayAttendance.time_out}
+              onClick={handleLunchOut}
+              disabled={loading || !todayAttendance || lunchOut}
               type="button"
             >
               <span className="menu-icon">
                 <FiLogOut />
               </span>
-              <span className="menu-text">Clock Out</span>
+              <span className="menu-text">Lunch Out</span>
+            </button>
+            <button
+              className="menu-item clock-in"
+              onClick={handleLunchIn}
+              disabled={loading || !lunchOut || lunchIn}
+              type="button"
+            >
+              <span className="menu-icon">
+                <FiLogIn />
+              </span>
+              <span className="menu-text">Lunch In</span>
+            </button>
+            <button
+              className="menu-item clock-out"
+              onClick={handleAfternoonOut}
+              disabled={loading || !todayAttendance || (lunchOut && !lunchIn) || afternoonOut}
+              type="button"
+            >
+              <span className="menu-icon">
+                <FiLogOut />
+              </span>
+              <span className="menu-text">Afternoon Out</span>
             </button>
             <button
               className="menu-item notes"
@@ -194,19 +220,35 @@ export default function TimeInOut({ onAttendanceUpdate }) {
           <div className="attendance-card">
             <div className="attendance-grid">
               <div className="attendance-item">
-                <div className="item-label">Time In</div>
+                <div className="item-label">Morning In</div>
                 <div className="item-value">
-                  {todayAttendance.time_in
-                    ? format(new Date(todayAttendance.time_in), "hh:mm:ss a")
+                  {morningIn
+                    ? format(new Date(morningIn), "hh:mm:ss a")
                     : "-"}
                 </div>
               </div>
 
               <div className="attendance-item">
-                <div className="item-label">Time Out</div>
+                <div className="item-label">Lunch Out</div>
                 <div className="item-value">
-                  {todayAttendance.time_out
-                    ? format(new Date(todayAttendance.time_out), "hh:mm:ss a")
+                  {lunchOut
+                    ? format(new Date(lunchOut), "hh:mm:ss a")
+                    : "-"}
+                </div>
+              </div>
+
+              <div className="attendance-item">
+                <div className="item-label">Lunch In</div>
+                <div className="item-value">
+                  {lunchIn ? format(new Date(lunchIn), "hh:mm:ss a") : "-"}
+                </div>
+              </div>
+
+              <div className="attendance-item">
+                <div className="item-label">Afternoon Out</div>
+                <div className="item-value">
+                  {afternoonOut
+                    ? format(new Date(afternoonOut), "hh:mm:ss a")
                     : "-"}
                 </div>
               </div>
@@ -230,7 +272,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
               </div>
             </div>
 
-            {todayAttendance.time_out && (
+            {afternoonOut && (
               <div className="completion-badge">
                 <FiCheckCircle />
                 <span>Attendance Complete</span>
@@ -269,7 +311,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
         <div className="attendance-actions">
           {!todayAttendance && (
             <button
-              onClick={handleTimeIn}
+              onClick={handleMorningIn}
               disabled={loading}
               className="btn-timein btn-primary"
               type="button"
@@ -282,15 +324,15 @@ export default function TimeInOut({ onAttendanceUpdate }) {
               ) : (
                 <>
                   <FiLogIn />
-                  Time In
+                  Morning In
                 </>
               )}
             </button>
           )}
 
-          {todayAttendance && !todayAttendance.time_out && (
+          {todayAttendance && !lunchOut && (
             <button
-              onClick={handleTimeOut}
+              onClick={handleLunchOut}
               disabled={loading}
               className="btn-timeout btn-danger"
               type="button"
@@ -303,7 +345,49 @@ export default function TimeInOut({ onAttendanceUpdate }) {
               ) : (
                 <>
                   <FiLogOut />
-                  Time Out
+                  Lunch Out
+                </>
+              )}
+            </button>
+          )}
+
+          {lunchOut && !lunchIn && (
+            <button
+              onClick={handleLunchIn}
+              disabled={loading}
+              className="btn-timein btn-primary"
+              type="button"
+            >
+              {loading ? (
+                <>
+                  <span className="spinner"></span>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <FiLogIn />
+                  Lunch In
+                </>
+              )}
+            </button>
+          )}
+
+          {todayAttendance && !afternoonOut && (
+            <button
+              onClick={handleAfternoonOut}
+              disabled={loading || (lunchOut && !lunchIn)}
+              className="btn-timeout btn-danger"
+              type="button"
+            >
+              {loading ? (
+                <>
+                  <span className="spinner"></span>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <FiLogOut />
+                  Afternoon Out
                 </>
               )}
             </button>
@@ -313,7 +397,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
         <div className="timeinout-info">
           <p className="info-text">
             <FiInfo />
-            Keep one complete record per workday.
+            Complete the day in order: morning in, lunch out, lunch in, afternoon out.
           </p>
         </div>
       </div>

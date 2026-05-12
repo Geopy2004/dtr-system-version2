@@ -59,20 +59,10 @@ export const profileAPI = {
   },
 
   async createUser(email, password, profileData) {
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
-    if (authError) throw authError;
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .insert([{ id: authData.user.id, email, ...profileData }])
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+    void email;
+    void password;
+    void profileData;
+    throw new Error("User creation must be handled by a trusted backend.");
   },
 
   async deleteUser(userId) {
@@ -156,8 +146,35 @@ const runWithSchemaFallback = async (createQuery, payload) => {
   throw new Error("Attendance schema does not match the required fields.");
 };
 
+const calculateHoursWorked = (startTime, endTime) => {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  const diffMs = end.getTime() - start.getTime();
+
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return 0;
+
+  return Number((diffMs / 1000 / 60 / 60).toFixed(2));
+};
+
+const calculateSplitHours = (record, endTime) => {
+  const morningHours =
+    record.morning_time_in && record.lunch_time_out
+      ? calculateHoursWorked(record.morning_time_in, record.lunch_time_out)
+      : 0;
+  const afternoonHours =
+    record.lunch_time_in && endTime
+      ? calculateHoursWorked(record.lunch_time_in, endTime)
+      : 0;
+
+  if (morningHours || afternoonHours) {
+    return Number((morningHours + afternoonHours).toFixed(2));
+  }
+
+  return calculateHoursWorked(record.time_in, endTime);
+};
+
 export const attendanceAPI = {
-  async timeIn(location = "", notes = "") {
+  async morningIn(location = "", notes = "") {
     const user = await getAuthenticatedUser();
     const now = new Date();
     const today = getLocalDateString(now);
@@ -185,6 +202,7 @@ export const attendanceAPI = {
         user_id: user.id,
         date: today,
         time_in: now.toISOString(),
+        morning_time_in: now.toISOString(),
         location,
         notes,
         status,
@@ -194,8 +212,73 @@ export const attendanceAPI = {
     );
   },
 
-  async timeOut(userId) {
-    const user = userId ? { id: userId } : await getAuthenticatedUser();
+  async timeIn(location = "", notes = "") {
+    return attendanceAPI.morningIn(location, notes);
+  },
+
+  async lunchOut() {
+    const user = await getAuthenticatedUser();
+    const now = new Date();
+    const today = getLocalDateString(now);
+
+    const { data: existing, error: fetchError } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("date", today)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (!existing) throw new Error("No time-in record found for today.");
+    if (existing.lunch_time_out) throw new Error("Already timed out for lunch.");
+
+    return runWithSchemaFallback(
+      (payload) =>
+        supabase
+          .from("attendance")
+          .update(payload)
+          .eq("id", existing.id)
+          .select()
+          .single(),
+      {
+        lunch_time_out: now.toISOString(),
+      }
+    );
+  },
+
+  async lunchIn() {
+    const user = await getAuthenticatedUser();
+    const now = new Date();
+    const today = getLocalDateString(now);
+
+    const { data: existing, error: fetchError } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("date", today)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (!existing) throw new Error("No time-in record found for today.");
+    if (!existing.lunch_time_out) throw new Error("Record lunch out first.");
+    if (existing.lunch_time_in) throw new Error("Already timed in after lunch.");
+
+    return runWithSchemaFallback(
+      (payload) =>
+        supabase
+          .from("attendance")
+          .update(payload)
+          .eq("id", existing.id)
+          .select()
+          .single(),
+      {
+        lunch_time_in: now.toISOString(),
+      }
+    );
+  },
+
+  async timeOut() {
+    const user = await getAuthenticatedUser();
     const now = new Date();
     const today = getLocalDateString(now);
 
@@ -209,9 +292,11 @@ export const attendanceAPI = {
     if (fetchError) throw fetchError;
     if (!existing) throw new Error("No time-in record found for today.");
     if (existing.time_out) throw new Error("Already timed out today.");
+    if (existing.lunch_time_out && !existing.lunch_time_in) {
+      throw new Error("Record lunch in first.");
+    }
 
-    const timeIn = new Date(existing.time_in);
-    const hoursWorked = ((now - timeIn) / 1000 / 60 / 60).toFixed(2);
+    const hoursWorked = calculateSplitHours(existing, now);
 
     return runWithSchemaFallback(
       (payload) =>
@@ -223,13 +308,18 @@ export const attendanceAPI = {
           .single(),
       {
         time_out: now.toISOString(),
+        afternoon_time_out: now.toISOString(),
         hours_worked: hoursWorked,
       }
     );
   },
 
-  async getTodayRecord(userId) {
-    const user = userId ? { id: userId } : await getAuthenticatedUser();
+  async afternoonOut() {
+    return attendanceAPI.timeOut();
+  },
+
+  async getTodayRecord() {
+    const user = await getAuthenticatedUser();
     const today = getLocalDateString();
 
     const { data, error } = await supabase
@@ -243,8 +333,8 @@ export const attendanceAPI = {
     return data;
   },
 
-  async getRecords(userId, startDate, endDate) {
-    const user = userId ? { id: userId } : await getAuthenticatedUser();
+  async getRecords(startDate, endDate) {
+    const user = await getAuthenticatedUser();
 
     const { data, error } = await supabase
       .from("attendance")
@@ -273,8 +363,8 @@ export const attendanceAPI = {
   },
 
   async getMyAttendance(params = {}) {
-    const { userId, startDate, endDate, limit } = params;
-    const user = userId ? { id: userId } : await getAuthenticatedUser();
+    const { startDate, endDate, limit } = params;
+    const user = await getAuthenticatedUser();
 
     let query = supabase
       .from("attendance")
