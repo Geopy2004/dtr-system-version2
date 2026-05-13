@@ -64,11 +64,17 @@ const getAuthenticatedUser = async () => {
 };
 
 const getMissingSchemaColumn = (error) => {
-  if (error?.code !== "PGRST204") return null;
+  if (!["PGRST204", "42703"].includes(error?.code)) return null;
 
-  const match = error.message?.match(/'([^']+)' column/);
-  return match?.[1] || null;
+  const schemaCacheMatch = error.message?.match(/'([^']+)' column/);
+  if (schemaCacheMatch?.[1]) return schemaCacheMatch[1];
+
+  const postgresMatch = error.message?.match(/column\s+\S+\.([^\s]+)\s+does not exist/i);
+  return postgresMatch?.[1] || null;
 };
+
+const isMissingReadColumn = (error) =>
+  ["date", "time_in"].includes(getMissingSchemaColumn(error));
 
 const runWithSchemaFallback = async (createQuery, payload) => {
   let nextPayload = { ...payload };
@@ -101,6 +107,49 @@ const calculateHoursWorked = (startTime, endTime) => {
 
   return Number((diffMs / 1000 / 60 / 60).toFixed(2));
 };
+
+const getAttendanceDateFromRecord = (record) => {
+  if (record.date) return record.date;
+
+  const timestamp =
+    record.morning_time_in ||
+    record.time_in ||
+    record.created_at ||
+    record.updated_at;
+  if (!timestamp) return null;
+
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? null : getLocalDateString(date);
+};
+
+const normalizeAttendanceRecord = (record) => {
+  const fallbackStart =
+    record.morning_time_in || record.time_in || record.created_at || null;
+  const fallbackEnd = record.afternoon_time_out || record.time_out || null;
+
+  return {
+    ...record,
+    date: getAttendanceDateFromRecord(record),
+    time_in: record.time_in || fallbackStart,
+    morning_time_in: record.morning_time_in || record.time_in || fallbackStart,
+    time_out: record.time_out || fallbackEnd,
+    afternoon_time_out: record.afternoon_time_out || record.time_out || fallbackEnd,
+    status: record.status || "present",
+  };
+};
+
+const filterAttendanceByDateRange = (records, startDate, endDate) =>
+  records.filter((record) => {
+    if (!record.date) return false;
+    return (!startDate || record.date >= startDate) && (!endDate || record.date <= endDate);
+  });
+
+const sortAttendanceRecords = (records) =>
+  [...records].sort((a, b) => {
+    const left = new Date(a.time_in || a.created_at || a.date || 0).getTime();
+    const right = new Date(b.time_in || b.created_at || b.date || 0).getTime();
+    return right - left;
+  });
 
 const calculateSplitHours = (record, endTime) => {
   const morningHours =
@@ -630,8 +679,26 @@ export const attendanceAPI = {
       .eq("date", today)
       .maybeSingle();
 
-    if (error) throw error;
-    return data;
+    if (!error) return data ? normalizeAttendanceRecord(data) : data;
+    if (!isMissingReadColumn(error)) throw error;
+
+    const { data: legacyData, error: legacyError } = await supabase
+      .from(ATTENDANCE_TABLE)
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (legacyError) throw legacyError;
+
+    return (
+      sortAttendanceRecords(
+        filterAttendanceByDateRange(
+          (legacyData || []).map(normalizeAttendanceRecord),
+          today,
+          today
+        )
+      )[0] || null
+    );
   },
 
   async getRecords(startDate, endDate) {
@@ -646,8 +713,23 @@ export const attendanceAPI = {
       .order("date", { ascending: false })
       .order("time_in", { ascending: false });
 
-    if (error) throw error;
-    return data || [];
+    if (!error) return (data || []).map(normalizeAttendanceRecord);
+    if (!isMissingReadColumn(error)) throw error;
+
+    const { data: legacyData, error: legacyError } = await supabase
+      .from(ATTENDANCE_TABLE)
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (legacyError) throw legacyError;
+    return sortAttendanceRecords(
+      filterAttendanceByDateRange(
+        (legacyData || []).map(normalizeAttendanceRecord),
+        startDate,
+        endDate
+      )
+    );
   },
 
   async getAllRecords(startDate, endDate) {
@@ -661,8 +743,24 @@ export const attendanceAPI = {
     if (endDate) query = query.lte("date", endDate);
 
     const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    if (!error) return (data || []).map(normalizeAttendanceRecord);
+    if (!isMissingReadColumn(error)) throw error;
+
+    let legacyQuery = supabase
+      .from(ATTENDANCE_TABLE)
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    const { data: legacyData, error: legacyError } = await legacyQuery;
+    if (legacyError) throw legacyError;
+
+    return sortAttendanceRecords(
+      filterAttendanceByDateRange(
+        (legacyData || []).map(normalizeAttendanceRecord),
+        startDate,
+        endDate
+      )
+    );
   },
 
   async getMyAttendance(params = {}) {
@@ -684,9 +782,33 @@ export const attendanceAPI = {
     if (limit) query = query.limit(limit);
 
     const { data, error } = await query;
-    if (error) throw error;
+    let records;
 
-    const records = data || [];
+    if (!error) {
+      records = (data || []).map(normalizeAttendanceRecord);
+    } else {
+      if (!isMissingReadColumn(error)) throw error;
+
+      let legacyQuery = supabase
+        .from(ATTENDANCE_TABLE)
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (limit) legacyQuery = legacyQuery.limit(limit);
+
+      const { data: legacyData, error: legacyError } = await legacyQuery;
+      if (legacyError) throw legacyError;
+
+      records = sortAttendanceRecords(
+        filterAttendanceByDateRange(
+          (legacyData || []).map(normalizeAttendanceRecord),
+          startDate,
+          endDate
+        )
+      );
+    }
+
     return {
       attendance: records,
       stats: getAttendanceStats(records),
@@ -698,7 +820,7 @@ export const departmentAPI = {
   async getDepartments() {
     const { data, error } = await supabase
       .from("departments")
-      .select("*, profiles!departments_manager_id_fkey(full_name)")
+      .select("*, manager:profiles!departments_manager_id_fkey(full_name, email)")
       .order("name", { ascending: true });
     if (error) throw error;
     return data || [];
@@ -736,7 +858,7 @@ export const shiftAPI = {
   async getSchedules() {
     const { data, error } = await supabase
       .from("schedules")
-      .select("*, profiles(full_name, department), shifts(name, start_time, end_time)")
+      .select("*, profiles(full_name, department), departments(name, code), shifts(name, start_time, end_time)")
       .order("valid_from", { ascending: false });
     if (error) throw error;
     return data || [];

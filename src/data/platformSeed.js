@@ -87,6 +87,35 @@ export const seedShifts = [
   },
 ];
 
+export const seedSchedules = [
+  {
+    id: "schedule-1",
+    user_id: "seed-1",
+    department_id: null,
+    shift_id: "shift-1",
+    valid_from: isoDate(addDays(-14)),
+    valid_to: "",
+    days_of_week: [1, 2, 3, 4, 5],
+    is_active: true,
+    profiles: seedEmployees[0],
+    departments: null,
+    shifts: seedShifts[0],
+  },
+  {
+    id: "schedule-2",
+    user_id: null,
+    department_id: "dept-2",
+    shift_id: "shift-3",
+    valid_from: isoDate(addDays(1)),
+    valid_to: "",
+    days_of_week: [1, 2, 3, 4, 5],
+    is_active: true,
+    profiles: null,
+    departments: seedDepartments[1],
+    shifts: seedShifts[2],
+  },
+];
+
 export const seedAttendance = Array.from({ length: 18 }, (_, index) => {
   const date = addDays(-index);
   const late = index % 5 === 0;

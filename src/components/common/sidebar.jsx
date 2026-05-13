@@ -7,6 +7,8 @@ import {
   MdAdminPanelSettings,
   MdAnalytics,
   MdCalendarMonth,
+  MdChevronLeft,
+  MdChevronRight,
   MdClose,
   MdDashboard,
   MdHistory,
@@ -39,7 +41,7 @@ const adminMenus = [
   { path: "/admin/settings", icon: <MdSettings />, label: "Settings" },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ collapsed = false, onCollapsedChange }) {
   const { isAdmin, logout, user, profile } = useAuth();
   const navigate = useNavigate();
   const logoutInProgressRef = useRef(false);
@@ -70,6 +72,7 @@ export default function Sidebar() {
   const menus = isAdmin ? adminMenus : userMenus;
   const displayName =
     profile?.full_name || profile?.name || user?.email?.split("@")[0] || "Operator";
+  const toggleCollapsed = () => onCollapsedChange?.(!collapsed);
 
   return (
     <>
@@ -85,11 +88,21 @@ export default function Sidebar() {
       {open && <button className="sidebar-overlay" aria-label="Close navigation" onClick={() => setOpen(false)} />}
 
       <motion.aside
-        className={`sidebar ${open ? "open" : ""}`}
-        initial={{ x: -22, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
+        className={`sidebar ${open ? "open" : ""} ${collapsed ? "collapsed" : ""}`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.35, ease: "easeOut" }}
       >
+        <button
+          className="sidebar-collapse"
+          type="button"
+          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-expanded={!collapsed}
+          onClick={toggleCollapsed}
+        >
+          {collapsed ? <MdChevronRight /> : <MdChevronLeft />}
+        </button>
+
         <button
           className="sidebar-close"
           type="button"
@@ -103,15 +116,15 @@ export default function Sidebar() {
           <div className="brand-mark">
             <MdAdminPanelSettings />
           </div>
-          <div>
+          <div className="brand-copy">
             <h1>DTR Nexus</h1>
             <p>{isAdmin ? "Enterprise Command" : "Employee Workspace"}</p>
           </div>
         </div>
 
-        <div className="operator-card">
+        <div className="operator-card" title={displayName}>
           <div className="operator-avatar">{displayName.slice(0, 1).toUpperCase()}</div>
-          <div>
+          <div className="operator-details">
             <span>Signed in as</span>
             <strong>{displayName}</strong>
             <p>{isAdmin ? "Administrator" : "Employee"}</p>
@@ -126,9 +139,10 @@ export default function Sidebar() {
               end={menu.path.endsWith("dashboard")}
               className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
               onClick={() => setOpen(false)}
+              title={collapsed ? menu.label : undefined}
             >
-              <span>{menu.icon}</span>
-              {menu.label}
+              <span className="sidebar-link-icon">{menu.icon}</span>
+              <span className="sidebar-link-label">{menu.label}</span>
             </NavLink>
           ))}
         </nav>
@@ -141,7 +155,9 @@ export default function Sidebar() {
           </div>
           <button className="logout-btn" type="button" onClick={handleLogout} disabled={isLoggingOut}>
             <MdLogout />
-            {isLoggingOut ? "Signing out..." : "Logout"}
+            <span className="logout-label">
+              {isLoggingOut ? "Signing out..." : "Logout"}
+            </span>
           </button>
         </div>
       </motion.aside>

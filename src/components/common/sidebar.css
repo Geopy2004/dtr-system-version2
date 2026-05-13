@@ -13,12 +13,34 @@
     rgba(8, 11, 28, 0.9);
   box-shadow: 14px 0 48px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(24px);
+  transition: width 220ms ease, padding 220ms ease, transform 220ms ease;
 }
 
 .mobile-menu-btn,
 .sidebar-close,
 .sidebar-overlay {
   display: none;
+}
+
+.sidebar-collapse {
+  position: absolute;
+  top: 20px;
+  right: -17px;
+  z-index: 5;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #ffffff;
+  background: rgba(12, 16, 36, 0.9);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+}
+
+.sidebar-collapse svg {
+  font-size: 1.2rem;
 }
 
 .brand-block {
@@ -121,6 +143,11 @@
   transition: background 180ms ease, color 180ms ease, transform 180ms ease, border 180ms ease;
 }
 
+.sidebar-link-icon {
+  display: grid;
+  place-items: center;
+}
+
 .sidebar-link svg {
   font-size: 1.25rem;
 }
@@ -172,7 +199,66 @@
   font-weight: 900;
 }
 
+@media (min-width: 1121px) {
+  .sidebar.collapsed {
+    width: 84px;
+    padding: 22px 12px;
+  }
+
+  .sidebar.collapsed .brand-block {
+    justify-content: center;
+    padding: 8px 0 22px;
+  }
+
+  .sidebar.collapsed .brand-copy,
+  .sidebar.collapsed .operator-details,
+  .sidebar.collapsed .sidebar-link-label,
+  .sidebar.collapsed .system-row span,
+  .sidebar.collapsed .system-row i,
+  .sidebar.collapsed .logout-label {
+    display: none;
+  }
+
+  .sidebar.collapsed .operator-card {
+    justify-content: center;
+    padding: 10px;
+  }
+
+  .sidebar.collapsed .sidebar-nav {
+    width: 100%;
+    padding-right: 0;
+  }
+
+  .sidebar.collapsed .sidebar-link {
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+  }
+
+  .sidebar.collapsed .sidebar-link:hover,
+  .sidebar.collapsed .sidebar-link.active {
+    transform: translateX(0);
+  }
+
+  .sidebar.collapsed .sidebar-system {
+    width: 100%;
+  }
+
+  .sidebar.collapsed .system-row,
+  .sidebar.collapsed .logout-btn {
+    justify-content: center;
+  }
+
+  .sidebar.collapsed .logout-btn {
+    padding: 0;
+  }
+}
+
 @media (max-width: 1120px) {
+  .sidebar-collapse {
+    display: none;
+  }
+
   .mobile-menu-btn {
     position: fixed;
     top: 16px;

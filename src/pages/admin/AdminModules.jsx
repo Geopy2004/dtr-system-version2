@@ -50,6 +50,7 @@ import {
   seedHolidays,
   seedLeaves,
   seedLogs,
+  seedSchedules,
   seedShifts,
 } from "../../data/platformSeed";
 import {
@@ -71,6 +72,33 @@ const emptyEmployee = {
   role: "employee",
   is_active: true,
 };
+
+const emptyDepartment = {
+  name: "",
+  code: "",
+  manager_id: "",
+  is_active: true,
+};
+
+const createEmptySchedule = () => ({
+  target_type: "employee",
+  target_id: "",
+  shift_id: "",
+  valid_from: format(new Date(), "yyyy-MM-dd"),
+  valid_to: "",
+  days_of_week: [1, 2, 3, 4, 5],
+  is_active: true,
+});
+
+const weekDays = [
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 0, label: "Sun" },
+];
 
 const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -147,7 +175,13 @@ export function EmployeeManagement() {
 
     try {
       if (editing?.id) {
-        const updates = { ...form };
+        const updates = {
+          full_name: form.full_name,
+          department: form.department,
+          position: form.position,
+          role: form.role || "employee",
+          is_active: form.is_active !== false,
+        };
         if (avatarFile) {
           updates.avatar_url = await profileAPI.uploadAvatar(avatarFile, editing.id);
         }
@@ -435,15 +469,22 @@ export function AdminAttendance() {
 
 export function DepartmentManagement() {
   const [departments, setDepartments] = useState([]);
-  const [form, setForm] = useState({ name: "", code: "", is_active: true });
+  const [employees, setEmployees] = useState([]);
+  const [form, setForm] = useState(emptyDepartment);
   const [editing, setEditing] = useState(null);
 
   const loadDepartments = useCallback(async () => {
     try {
-      setDepartments(await departmentAPI.getDepartments());
+      const [departmentData, employeeData] = await Promise.all([
+        departmentAPI.getDepartments(),
+        profileAPI.getAllUsers(),
+      ]);
+      setDepartments(departmentData);
+      setEmployees(employeeData);
     } catch (error) {
       console.warn("Department preview data loaded:", error?.message);
       setDepartments(seedDepartments);
+      setEmployees(seedEmployees);
     }
   }, []);
 
@@ -454,10 +495,20 @@ export function DepartmentManagement() {
 
   const saveDepartment = async (event) => {
     event.preventDefault();
+    if (!form.name.trim()) {
+      toast.error("Department name is required.");
+      return;
+    }
+
     try {
-      await departmentAPI.saveDepartment({ ...form, id: editing?.id });
+      await departmentAPI.saveDepartment({
+        ...form,
+        id: editing?.id,
+        code: form.code.trim() || null,
+        manager_id: form.manager_id || null,
+      });
       toast.success("Department saved.");
-      setForm({ name: "", code: "", is_active: true });
+      setForm(emptyDepartment);
       setEditing(null);
       await loadDepartments();
     } catch (error) {
@@ -467,8 +518,25 @@ export function DepartmentManagement() {
 
   const editDepartment = (department) => {
     setEditing(department);
-    setForm({ name: department.name || "", code: department.code || "", is_active: department.is_active !== false });
+    setForm({
+      name: department.name || "",
+      code: department.code || "",
+      manager_id: department.manager_id || "",
+      is_active: department.is_active !== false,
+    });
   };
+
+  const clearDepartmentForm = () => {
+    setEditing(null);
+    setForm(emptyDepartment);
+  };
+
+  const getDepartmentManagerName = (department) =>
+    department.manager?.full_name ||
+    department.profiles?.full_name ||
+    department.profiles?.[0]?.full_name ||
+    employees.find((employee) => employee.id === department.manager_id)?.full_name ||
+    "-";
 
   return (
     <AppShell>
@@ -483,21 +551,47 @@ export function DepartmentManagement() {
 
         <section className="split-grid">
           <form className="glass-card form-grid" onSubmit={saveDepartment}>
-            <div className="card-title-row"><h2>{editing ? "Edit Department" : "New Department"}</h2><FiBriefcase /></div>
+            <div className="card-title-row">
+              <h2>{editing ? "Edit Department" : "New Department"}</h2>
+              {editing ? (
+                <button className="icon-btn" type="button" onClick={clearDepartmentForm} aria-label="Cancel edit">
+                  <FiX />
+                </button>
+              ) : (
+                <FiBriefcase />
+              )}
+            </div>
             <label className="field-control"><span>Name</span><input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} /></label>
             <label className="field-control"><span>Code</span><input value={form.code} onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase() }))} /></label>
+            <label className="field-control">
+              <span>Manager</span>
+              <select value={form.manager_id || ""} onChange={(event) => setForm((prev) => ({ ...prev, manager_id: event.target.value }))}>
+                <option value="">No manager</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>{employee.full_name || employee.name || employee.email}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field-control">
+              <span>Status</span>
+              <select value={form.is_active ? "active" : "inactive"} onChange={(event) => setForm((prev) => ({ ...prev, is_active: event.target.value === "active" }))}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </label>
             <button className="primary-btn" type="submit"><FiSave /> Save</button>
           </form>
 
           <div className="table-card">
             <div className="data-table-wrap">
               <table className="data-table">
-                <thead><tr><th>Name</th><th>Code</th><th>Status</th><th>Action</th></tr></thead>
+                <thead><tr><th>Name</th><th>Code</th><th>Manager</th><th>Status</th><th>Action</th></tr></thead>
                 <tbody>
                   {departments.map((department) => (
                     <tr key={department.id || department.name}>
                       <td>{department.name}</td>
                       <td>{department.code}</td>
+                      <td>{getDepartmentManagerName(department)}</td>
                       <td><span className={`badge ${department.is_active === false ? "inactive" : "active"}`}>{department.is_active === false ? "Inactive" : "Active"}</span></td>
                       <td><button className="icon-btn" type="button" onClick={() => editDepartment(department)} aria-label="Edit department"><FiEdit3 /></button></td>
                     </tr>
@@ -515,6 +609,9 @@ export function DepartmentManagement() {
 export function ScheduleManagement() {
   const [shifts, setShifts] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [editingSchedule, setEditingSchedule] = useState(null);
   const [shiftForm, setShiftForm] = useState({
     name: "",
     start_time: "08:00",
@@ -522,19 +619,26 @@ export function ScheduleManagement() {
     break_minutes: 60,
     grace_period_minutes: 15,
   });
+  const [scheduleForm, setScheduleForm] = useState(createEmptySchedule);
 
   const loadSchedules = useCallback(async () => {
     try {
-      const [shiftData, scheduleData] = await Promise.all([
+      const [shiftData, scheduleData, employeeData, departmentData] = await Promise.all([
         shiftAPI.getShifts(),
         shiftAPI.getSchedules(),
+        profileAPI.getAllUsers(),
+        departmentAPI.getDepartments(),
       ]);
       setShifts(shiftData);
       setSchedules(scheduleData);
+      setEmployees(employeeData.filter((employee) => employee.is_active !== false));
+      setDepartments(departmentData.filter((department) => department.is_active !== false));
     } catch (error) {
       console.warn("Schedule preview data loaded:", error?.message);
       setShifts(seedShifts);
-      setSchedules([]);
+      setSchedules(seedSchedules);
+      setEmployees(seedEmployees.filter((employee) => employee.is_active !== false));
+      setDepartments(seedDepartments.filter((department) => department.is_active !== false));
     }
   }, []);
 
@@ -545,6 +649,11 @@ export function ScheduleManagement() {
 
   const saveShift = async (event) => {
     event.preventDefault();
+    if (!shiftForm.name.trim()) {
+      toast.error("Shift name is required.");
+      return;
+    }
+
     try {
       await shiftAPI.saveShift(shiftForm);
       toast.success("Shift saved.");
@@ -554,6 +663,88 @@ export function ScheduleManagement() {
       toast.error(error?.message || "Unable to save shift.");
     }
   };
+
+  const saveSchedule = async (event) => {
+    event.preventDefault();
+
+    if (!scheduleForm.target_id || !scheduleForm.shift_id) {
+      toast.error("Choose a target and shift.");
+      return;
+    }
+
+    if (!scheduleForm.days_of_week.length) {
+      toast.error("Choose at least one work day.");
+      return;
+    }
+
+    const isEmployeeTarget = scheduleForm.target_type === "employee";
+
+    try {
+      await shiftAPI.saveSchedule({
+        id: editingSchedule?.id,
+        user_id: isEmployeeTarget ? scheduleForm.target_id : null,
+        department_id: isEmployeeTarget ? null : scheduleForm.target_id,
+        shift_id: scheduleForm.shift_id,
+        valid_from: scheduleForm.valid_from || format(new Date(), "yyyy-MM-dd"),
+        valid_to: scheduleForm.valid_to || null,
+        days_of_week: scheduleForm.days_of_week,
+        is_active: scheduleForm.is_active,
+      });
+      toast.success("Schedule assignment saved.");
+      setEditingSchedule(null);
+      setScheduleForm(createEmptySchedule());
+      await loadSchedules();
+    } catch (error) {
+      toast.error(error?.message || "Unable to save schedule.");
+    }
+  };
+
+  const toggleScheduleDay = (day) => {
+    setScheduleForm((prev) => {
+      const selected = prev.days_of_week.includes(day)
+        ? prev.days_of_week.filter((item) => item !== day)
+        : [...prev.days_of_week, day];
+      return { ...prev, days_of_week: selected.sort((a, b) => a - b) };
+    });
+  };
+
+  const editSchedule = (schedule) => {
+    const isEmployeeTarget = Boolean(schedule.user_id);
+    setEditingSchedule(schedule);
+    setScheduleForm({
+      target_type: isEmployeeTarget ? "employee" : "department",
+      target_id: isEmployeeTarget ? schedule.user_id : schedule.department_id,
+      shift_id: schedule.shift_id || "",
+      valid_from: schedule.valid_from || format(new Date(), "yyyy-MM-dd"),
+      valid_to: schedule.valid_to || "",
+      days_of_week: schedule.days_of_week?.length ? schedule.days_of_week : [1, 2, 3, 4, 5],
+      is_active: schedule.is_active !== false,
+    });
+  };
+
+  const clearScheduleForm = () => {
+    setEditingSchedule(null);
+    setScheduleForm(createEmptySchedule());
+  };
+
+  const getScheduleTarget = (schedule) =>
+    schedule.profiles?.full_name ||
+    schedule.profiles?.name ||
+    employees.find((employee) => employee.id === schedule.user_id)?.full_name ||
+    schedule.departments?.name ||
+    departments.find((department) => department.id === schedule.department_id)?.name ||
+    "Unassigned";
+
+  const getScheduleShift = (schedule) =>
+    schedule.shifts?.name ||
+    shifts.find((shift) => shift.id === schedule.shift_id)?.name ||
+    "-";
+
+  const getScheduleDays = (schedule) =>
+    (schedule.days_of_week || [])
+      .map((day) => weekDays.find((item) => item.value === day)?.label)
+      .filter(Boolean)
+      .join(", ") || "-";
 
   return (
     <AppShell>
@@ -567,37 +758,136 @@ export function ScheduleManagement() {
         </header>
 
         <section className="split-grid">
-          <form className="glass-card form-grid" onSubmit={saveShift}>
-            <div className="card-title-row"><h2>Shift Template</h2><FiCalendar /></div>
-            <label className="field-control"><span>Name</span><input value={shiftForm.name} onChange={(event) => setShiftForm((prev) => ({ ...prev, name: event.target.value }))} /></label>
-            <div className="form-two">
-              <label className="field-control"><span>Start</span><input type="time" value={shiftForm.start_time} onChange={(event) => setShiftForm((prev) => ({ ...prev, start_time: event.target.value }))} /></label>
-              <label className="field-control"><span>End</span><input type="time" value={shiftForm.end_time} onChange={(event) => setShiftForm((prev) => ({ ...prev, end_time: event.target.value }))} /></label>
-            </div>
-            <div className="form-two">
-              <label className="field-control"><span>Break minutes</span><input type="number" value={shiftForm.break_minutes} onChange={(event) => setShiftForm((prev) => ({ ...prev, break_minutes: event.target.value }))} /></label>
-              <label className="field-control"><span>Grace minutes</span><input type="number" value={shiftForm.grace_period_minutes} onChange={(event) => setShiftForm((prev) => ({ ...prev, grace_period_minutes: event.target.value }))} /></label>
-            </div>
-            <button className="primary-btn" type="submit"><FiSave /> Save</button>
-          </form>
+          <div className="page-stack">
+            <form className="glass-card form-grid" onSubmit={saveShift}>
+              <div className="card-title-row"><h2>Shift Template</h2><FiCalendar /></div>
+              <label className="field-control"><span>Name</span><input value={shiftForm.name} onChange={(event) => setShiftForm((prev) => ({ ...prev, name: event.target.value }))} /></label>
+              <div className="form-two">
+                <label className="field-control"><span>Start</span><input type="time" value={shiftForm.start_time} onChange={(event) => setShiftForm((prev) => ({ ...prev, start_time: event.target.value }))} /></label>
+                <label className="field-control"><span>End</span><input type="time" value={shiftForm.end_time} onChange={(event) => setShiftForm((prev) => ({ ...prev, end_time: event.target.value }))} /></label>
+              </div>
+              <div className="form-two">
+                <label className="field-control"><span>Break minutes</span><input type="number" value={shiftForm.break_minutes} onChange={(event) => setShiftForm((prev) => ({ ...prev, break_minutes: event.target.value }))} /></label>
+                <label className="field-control"><span>Grace minutes</span><input type="number" value={shiftForm.grace_period_minutes} onChange={(event) => setShiftForm((prev) => ({ ...prev, grace_period_minutes: event.target.value }))} /></label>
+              </div>
+              <button className="primary-btn" type="submit"><FiSave /> Save</button>
+            </form>
 
-          <div className="table-card">
-            <div className="card-title-row"><h2>Schedule Board</h2><span className="pill">{schedules.length} assignments</span></div>
-            <div className="data-table-wrap">
-              <table className="data-table">
-                <thead><tr><th>Shift</th><th>Start</th><th>End</th><th>Break</th><th>Grace</th></tr></thead>
-                <tbody>
+            <form className="glass-card form-grid" onSubmit={saveSchedule}>
+              <div className="card-title-row">
+                <h2>{editingSchedule ? "Edit Assignment" : "Assign Schedule"}</h2>
+                {editingSchedule ? (
+                  <button className="icon-btn" type="button" onClick={clearScheduleForm} aria-label="Cancel schedule edit">
+                    <FiX />
+                  </button>
+                ) : (
+                  <FiUsers />
+                )}
+              </div>
+              <div className="form-two">
+                <label className="field-control">
+                  <span>Assign to</span>
+                  <select
+                    value={scheduleForm.target_type}
+                    onChange={(event) => setScheduleForm((prev) => ({ ...prev, target_type: event.target.value, target_id: "" }))}
+                  >
+                    <option value="employee">Employee</option>
+                    <option value="department">Department</option>
+                  </select>
+                </label>
+                <label className="field-control">
+                  <span>{scheduleForm.target_type === "employee" ? "Employee" : "Department"}</span>
+                  <select value={scheduleForm.target_id} onChange={(event) => setScheduleForm((prev) => ({ ...prev, target_id: event.target.value }))}>
+                    <option value="">Select target</option>
+                    {(scheduleForm.target_type === "employee" ? employees : departments).map((item) => (
+                      <option key={item.id} value={item.id}>{item.full_name || item.name || item.email}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label className="field-control">
+                <span>Shift</span>
+                <select value={scheduleForm.shift_id} onChange={(event) => setScheduleForm((prev) => ({ ...prev, shift_id: event.target.value }))}>
+                  <option value="">Select shift</option>
                   {shifts.map((shift) => (
-                    <tr key={shift.id || shift.name}>
-                      <td>{shift.name}</td>
-                      <td>{shift.start_time}</td>
-                      <td>{shift.end_time}</td>
-                      <td>{shift.break_minutes}m</td>
-                      <td>{shift.grace_period_minutes}m</td>
-                    </tr>
+                    <option key={shift.id || shift.name} value={shift.id}>{shift.name}</option>
                   ))}
-                </tbody>
-              </table>
+                </select>
+              </label>
+              <div className="form-two">
+                <label className="field-control"><span>Valid from</span><input type="date" value={scheduleForm.valid_from} onChange={(event) => setScheduleForm((prev) => ({ ...prev, valid_from: event.target.value }))} /></label>
+                <label className="field-control"><span>Valid to</span><input type="date" value={scheduleForm.valid_to || ""} onChange={(event) => setScheduleForm((prev) => ({ ...prev, valid_to: event.target.value }))} /></label>
+              </div>
+              <div className="field-control">
+                <span>Work days</span>
+                <div className="day-toggle-group">
+                  {weekDays.map((day) => (
+                    <button
+                      className={`day-toggle ${scheduleForm.days_of_week.includes(day.value) ? "active" : ""}`}
+                      key={day.value}
+                      type="button"
+                      aria-pressed={scheduleForm.days_of_week.includes(day.value)}
+                      onClick={() => toggleScheduleDay(day.value)}
+                    >
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label className="field-control">
+                <span>Status</span>
+                <select value={scheduleForm.is_active ? "active" : "inactive"} onChange={(event) => setScheduleForm((prev) => ({ ...prev, is_active: event.target.value === "active" }))}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+              <button className="primary-btn" type="submit"><FiSave /> Save Assignment</button>
+            </form>
+          </div>
+
+          <div className="page-stack">
+            <div className="table-card">
+              <div className="card-title-row"><h2>Shift Templates</h2><span className="pill">{shifts.length} templates</span></div>
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead><tr><th>Shift</th><th>Start</th><th>End</th><th>Break</th><th>Grace</th></tr></thead>
+                  <tbody>
+                    {shifts.map((shift) => (
+                      <tr key={shift.id || shift.name}>
+                        <td>{shift.name}</td>
+                        <td>{shift.start_time}</td>
+                        <td>{shift.end_time}</td>
+                        <td>{shift.break_minutes}m</td>
+                        <td>{shift.grace_period_minutes}m</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="table-card">
+              <div className="card-title-row"><h2>Schedule Board</h2><span className="pill">{schedules.length} assignments</span></div>
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead><tr><th>Target</th><th>Shift</th><th>Days</th><th>Valid</th><th>Status</th><th>Action</th></tr></thead>
+                  <tbody>
+                    {schedules.map((schedule) => (
+                      <tr key={schedule.id}>
+                        <td>{getScheduleTarget(schedule)}</td>
+                        <td>{getScheduleShift(schedule)}</td>
+                        <td>{getScheduleDays(schedule)}</td>
+                        <td>{formatDate(schedule.valid_from)} to {schedule.valid_to ? formatDate(schedule.valid_to) : "Open"}</td>
+                        <td><span className={`badge ${schedule.is_active === false ? "inactive" : "active"}`}>{schedule.is_active === false ? "Inactive" : "Active"}</span></td>
+                        <td><button className="icon-btn" type="button" onClick={() => editSchedule(schedule)} aria-label="Edit schedule"><FiEdit3 /></button></td>
+                      </tr>
+                    ))}
+                    {!schedules.length && (
+                      <tr><td colSpan="6" className="empty-cell">No schedule assignments found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </section>
