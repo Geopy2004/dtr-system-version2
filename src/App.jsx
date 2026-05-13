@@ -1,46 +1,48 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
-
-// Auth Pages
 import Login from "./pages/auth/login";
 import Register from "./pages/auth/register";
-
-// User Pages
-import UserDashboard from "./pages/users/UserDashboard";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import UpdatePassword from "./pages/auth/UpdatePassword";
+import UserDashboard from "./pages/users/userdashboard";
 import MyAttendance from "./pages/users/myattendance";
 import MyLogs from "./pages/users/userlogs";
-
-// Admin Pages
+import LeavePortal from "./pages/users/leave";
 import AdminDashboard from "./pages/admin/admindashboard";
-
-// Components & Routes
+import {
+  AdminAttendance,
+  AdminLeaveManagement,
+  AuditTrail,
+  DepartmentManagement,
+  EmployeeManagement,
+  ReportsAnalytics,
+  ScheduleManagement,
+  SystemSettings,
+} from "./pages/admin/AdminModules";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import Loader from "./components/common/loader";
+import "./styles/platform.css";
+
+function HomeRedirect() {
+  const { user, isAdmin } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={isAdmin ? "/admin/dashboard" : "/user/dashboard"} replace />;
+}
 
 function App() {
   const { loading } = useAuth();
 
-  // Show loader while auth is initializing
-  if (loading) {
-    return <Loader />;
-  }
+  if (loading) return <Loader />;
 
   return (
     <Routes>
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* ROOT - REDIRECT TO LOGIN */}
-      {/* ═══════════════════════════════════════════════════════════ */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<HomeRedirect />} />
 
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* AUTH ROUTES - PUBLIC (always accessible) */}
-      {/* ═══════════════════════════════════════════════════════════ */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/update-password" element={<UpdatePassword />} />
 
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* USER ROUTES - PROTECTED (requires authentication) */}
-      {/* ═══════════════════════════════════════════════════════════ */}
       <Route
         path="/user/dashboard"
         element={
@@ -49,7 +51,6 @@ function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/user/myattendance"
         element={
@@ -58,12 +59,7 @@ function App() {
           </ProtectedRoute>
         }
       />
-
-      <Route
-        path="/my-attendance"
-        element={<Navigate to="/user/myattendance" replace />}
-      />
-
+      <Route path="/my-attendance" element={<Navigate to="/user/myattendance" replace />} />
       <Route
         path="/user/logs"
         element={
@@ -72,50 +68,89 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/user/leave"
+        element={
+          <ProtectedRoute>
+            <LeavePortal />
+          </ProtectedRoute>
+        }
+      />
 
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* ADMIN ROUTES - PROTECTED + ADMIN ONLY */}
-      {/* ═══════════════════════════════════════════════════════════ */}
       <Route
         path="/admin/dashboard"
         element={
-          <ProtectedRoute adminOnly={true}>
+          <ProtectedRoute adminOnly>
             <AdminDashboard />
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/admin/users"
         element={
-          <ProtectedRoute adminOnly={true}>
-            <div>Manage Users Page</div>
+          <ProtectedRoute adminOnly>
+            <EmployeeManagement />
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/admin/attendance"
         element={
-          <ProtectedRoute adminOnly={true}>
-            <div>All Attendance Page</div>
+          <ProtectedRoute adminOnly>
+            <AdminAttendance />
           </ProtectedRoute>
         }
       />
-
+      <Route
+        path="/admin/departments"
+        element={
+          <ProtectedRoute adminOnly>
+            <DepartmentManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/schedules"
+        element={
+          <ProtectedRoute adminOnly>
+            <ScheduleManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/leave"
+        element={
+          <ProtectedRoute adminOnly>
+            <AdminLeaveManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/reports"
+        element={
+          <ProtectedRoute adminOnly>
+            <ReportsAnalytics />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/admin/logs"
         element={
-          <ProtectedRoute adminOnly={true}>
-            <div>System Logs Page</div>
+          <ProtectedRoute adminOnly>
+            <AuditTrail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/settings"
+        element={
+          <ProtectedRoute adminOnly>
+            <SystemSettings />
           </ProtectedRoute>
         }
       />
 
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* FALLBACK - 404 REDIRECT TO LOGIN */}
-      {/* ═══════════════════════════════════════════════════════════ */}
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

@@ -1,385 +1,313 @@
-import { useState, useEffect, useMemo } from "react";
-import { format, startOfMonth, endOfMonth } from "date-fns";
-import { useNavigate } from "react-router-dom";
-import { 
-  FaCalendarAlt, 
-  FaCheckCircle, 
-  FaClock, 
-  FaHourglassHalf, 
-  FaTimesCircle, 
-  
-  FaArrowRight 
-} from "react-icons/fa";
-import { MdAccessTime } from "react-icons/md";
-
-import Sidebar from "../../components/common/Sidebar.jsx";
-import { attendanceAPI } from "../../services/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  Area,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ComposedChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  FiActivity,
+  FiBarChart2,
+  FiCalendar,
+  FiCheckCircle,
+  FiClock,
+  FiFileText,
+  FiLogIn,
+  FiTrendingUp,
+  FiUserCheck,
+} from "react-icons/fi";
+import { endOfMonth, format, startOfMonth } from "date-fns";
+import AppShell from "../../components/common/AppShell";
+import TimeInOut from "./timeinout";
 import { useAuth } from "../../context/AuthContext";
+import {
+  attendanceAPI,
+  leaveAPI,
+  realtimeAPI,
+} from "../../services/api";
+import { seedAttendance, seedLeaves } from "../../data/platformSeed";
+import {
+  buildDashboardStats,
+  buildMonthlyChart,
+  buildWeeklyChart,
+  formatDate,
+  formatTime,
+  getRecordEnd,
+  getRecordStart,
+  getStatusLabel,
+  getTodayRecord,
+} from "../../utils/attendance";
 
-import styles from "./UserDashboard.module.css";
+const chartColors = {
+  present: "#22c55e",
+  late: "#f59e0b",
+  absent: "#f43f5e",
+};
 
-// ─────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
 
-function statusClass(status) {
-  if (!status) return "";
-  switch (status.toLowerCase()) {
-    case "present":
-      return styles.statusPresent;
-    case "late":
-      return styles.statusLate;
-    case "absent":
-      return styles.statusAbsent;
-    case "half-day":
-    case "halfday":
-      return styles.statusHalfDay;
-    default:
-      return "";
-  }
-}
-
-function safeFormat(value, fmt) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (isNaN(date.getTime())) return "—";
-  return format(date, fmt);
-}
-
-// ─────────────────────────────────────────────
-// STAT CARD
-// ─────────────────────────────────────────────
-
-function StatCard({ label, value, icon, accent, subtitle }) {
   return (
-    <div className={`${styles.statCard} ${accent ? styles[`accent_${accent}`] : ""}`}>
-      <div className={styles.statTop}>
-        <div className={styles.statIcon}>{icon}</div>
-      </div>
-      <div className={styles.statBody}>
-        <h3 className={styles.statValue}>{value ?? 0}</h3>
-        <p className={styles.statLabel}>{label}</p>
-        {subtitle && <span className={styles.statSubtitle}>{subtitle}</span>}
-      </div>
+    <div className="chart-tooltip">
+      <strong>{label}</strong>
+      {payload.map((entry) => (
+        <span key={entry.dataKey}>
+          {entry.name || entry.dataKey}: {entry.value}
+        </span>
+      ))}
     </div>
   );
-}
-
-// ─────────────────────────────────────────────
-// MAIN DASHBOARD
-// ─────────────────────────────────────────────
+};
 
 export default function UserDashboard() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-
-  const [stats, setStats] = useState({
-    total_days: 0,
-    present: 0,
-    late: 0,
-    absent: 0,
-    half_day: 0,
-    total_late_minutes: 0,
-    total_hours: 0,
-  });
-
-  const [recentAttendance, setRecentAttendance] = useState([]);
+  const { profile, user } = useAuth();
+  const [clock, setClock] = useState(new Date());
+  const [records, setRecords] = useState([]);
+  const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [now, setNow] = useState(new Date());
 
-  // ─────────────────────────────────────────────
-  // LIVE CLOCK
-  // ─────────────────────────────────────────────
-  useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const displayName =
+    profile?.full_name || profile?.name || user?.email?.split("@")[0] || "Operator";
 
-  // ─────────────────────────────────────────────
-  // CALCULATE DATE RANGE
-  // ─────────────────────────────────────────────
-  const { startDate, endDate } = useMemo(() => {
-    const start = startOfMonth(new Date());
-    const end = endOfMonth(new Date());
-    return {
-      startDate: format(start, "yyyy-MM-dd"),
-      endDate: format(end, "yyyy-MM-dd"),
-    };
-  }, []);
-
-  // ─────────────────────────────────────────────
-  // FETCH DASHBOARD DATA
-  // ─────────────────────────────────────────────
-  useEffect(() => {
-    async function loadDashboard() {
-      try {
-        setLoading(true);
-        setError("");
-
-        // Verify user is authenticated
-        if (!user || !user.id) {
-          setError("User not authenticated. Please log in.");
-          setLoading(false);
-          return;
-        }
-
-        // Verify API method exists
-        if (
-          !attendanceAPI ||
-          typeof attendanceAPI.getMyAttendance !== "function"
-        ) {
-          console.error("attendanceAPI.getMyAttendance is not available");
-          setError(
-            "API method not available. Please check your API configuration."
-          );
-          setLoading(false);
-          return;
-        }
-
-        // Fetch month stats (all records in date range)
-        const statsResult = await attendanceAPI.getMyAttendance({
-          userId: user.id,
-          startDate,
-          endDate,
-        });
-
-        // Fetch recent records (limited to 5)
-        const recentResult = await attendanceAPI.getMyAttendance({
-          userId: user.id,
-          limit: 5,
-        });
-
-        // Set stats with defaults
-        setStats(
-          statsResult?.stats ?? {
-            total_days: 0,
-            present: 0,
-            late: 0,
-            absent: 0,
-            half_day: 0,
-            total_late_minutes: 0,
-            total_hours: 0,
-          }
-        );
-
-        // Set recent attendance records
-        setRecentAttendance(recentResult?.attendance ?? []);
-      } catch (err) {
-        console.error("Dashboard error:", err);
-
-        // Provide user-friendly error messages
-        if (err.message.includes("userId is required")) {
-          setError("User ID is missing. Please refresh and try again.");
-        } else if (err.code === "22P02") {
-          setError("Invalid user ID format. Please refresh and try again.");
-        } else if (err.status === 400) {
-          setError("Invalid request parameters. Please contact support.");
-        } else if (err.message.includes("not authenticated")) {
-          setError("Your session has expired. Please log in again.");
-        } else {
-          setError(err.message || "Failed to load dashboard data.");
-        }
-      } finally {
-        setLoading(false);
-      }
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    try {
+      const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+      const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
+      const [attendanceResult, leaveResult] = await Promise.all([
+        attendanceAPI.getMyAttendance({ startDate: monthStart, endDate: monthEnd }),
+        leaveAPI.getMyLeaves(),
+      ]);
+      setRecords(attendanceResult.attendance || []);
+      setLeaves(leaveResult || []);
+    } catch (error) {
+      console.warn("Dashboard preview data loaded:", error?.message);
+      setRecords(seedAttendance);
+      setLeaves(seedLeaves);
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    loadDashboard();
-  }, [startDate, endDate, user]);
+  useEffect(() => {
+    const handle = window.setTimeout(loadDashboard, 0);
+    return () => window.clearTimeout(handle);
+  }, [loadDashboard]);
 
-  // ─────────────────────────────────────────────
-  // CALCULATE ATTENDANCE RATE & MESSAGE
-  // ─────────────────────────────────────────────
-  const attendanceRate = useMemo(() => {
-    if (!stats.total_days) return 0;
-    return Math.round((stats.present / stats.total_days) * 100);
-  }, [stats]);
+  useEffect(() => {
+    const timer = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-  const attendanceMessage = useMemo(() => {
-    if (attendanceRate >= 90) return "Excellent attendance! 🌟";
-    if (attendanceRate >= 75) return "Good attendance 👍";
-    if (attendanceRate >= 50) return "Needs improvement ⚠️";
-    return "Critical attendance issues 🚨";
-  }, [attendanceRate]);
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    return realtimeAPI.subscribeToAttendance(loadDashboard, `user_id=eq.${user.id}`);
+  }, [loadDashboard, user?.id]);
 
-  // ─────────────────────────────────────────────
-  // SHOW LOADING STATE WHILE USER LOADS
-  // ─────────────────────────────────────────────
-  if (!user) {
-    return (
-      <div className={styles.layout}>
-        <Sidebar />
-        <div className={styles.mainContent}>
-          <div className={styles.dashboard}>
-            <div className={styles.loadingState}>Initializing...</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const stats = useMemo(() => buildDashboardStats(records), [records]);
+  const weeklyChart = useMemo(() => buildWeeklyChart(records), [records]);
+  const monthlyChart = useMemo(() => buildMonthlyChart(records), [records]);
+  const todayRecord = useMemo(() => getTodayRecord(records), [records]);
+  const recentRecords = useMemo(() => records.slice(0, 5), [records]);
+  const pendingLeaves = leaves.filter((leave) => leave.status === "pending").length;
 
-  // ─────────────────────────────────────────────
-  // RENDER UI
-  // ─────────────────────────────────────────────
+  const metrics = [
+    {
+      label: "Working Days",
+      value: stats.workingDays,
+      trend: "Current month",
+      icon: <FiCalendar />,
+      glow: "rgba(34, 211, 238, 0.34)",
+    },
+    {
+      label: "Present Days",
+      value: stats.present,
+      trend: `${stats.attendancePercentage}% attendance`,
+      icon: <FiUserCheck />,
+      glow: "rgba(34, 197, 94, 0.32)",
+    },
+    {
+      label: "Late Days",
+      value: stats.late,
+      trend: `${stats.totalLateMinutes} late minutes`,
+      icon: <FiClock />,
+      glow: "rgba(245, 158, 11, 0.34)",
+    },
+    {
+      label: "Worked Hours",
+      value: `${stats.totalWorkedHours}h`,
+      trend: `${stats.absent} absences projected`,
+      icon: <FiTrendingUp />,
+      glow: "rgba(236, 72, 153, 0.3)",
+    },
+  ];
+
   return (
-    <div className={styles.layout}>
-      <Sidebar />
+    <AppShell>
+      <div className="page page-stack">
+        <section className="hero-panel glass-card">
+          <div>
+            <span className="eyebrow">Employee Command</span>
+            <h1 className="page-title">Welcome, {displayName}</h1>
+            <p className="page-subtitle">
+              {format(clock, "EEEE, MMMM dd, yyyy")} at{" "}
+              <strong className="mono-time">{format(clock, "hh:mm:ss a")}</strong>
+            </p>
+          </div>
 
-      <div className={styles.mainContent}>
-        <div className={styles.dashboard}>
-          {/* ── HEADER ── */}
-          <header className={styles.header}>
-            {/* Top row: date/clock + month badge */}
-            <div className={styles.headerTop}>
-              <div className={styles.headerMeta}>
-                <span className={styles.headerDate}>
-                  {format(now, "EEEE, MMMM d, yyyy")}
+          <div className="status-orbit">
+            <span className="status-dot" />
+            <strong>{todayRecord ? getStatusLabel(todayRecord.status) : "Not checked in"}</strong>
+            <small>
+              {todayRecord
+                ? `${formatTime(getRecordStart(todayRecord))} to ${formatTime(getRecordEnd(todayRecord))}`
+                : "Ready for time in"}
+            </small>
+          </div>
+        </section>
+
+        <section className="metric-grid">
+          {metrics.map((metric, index) => (
+            <motion.article
+              className="metric-card"
+              style={{ "--metric-glow": metric.glow }}
+              key={metric.label}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.06 }}
+            >
+              <div className="metric-icon">{metric.icon}</div>
+              <div className="metric-value">{loading ? <span className="skeleton text-skeleton" /> : metric.value}</div>
+              <div className="metric-label">{metric.label}</div>
+              <div className="metric-trend">{metric.trend}</div>
+            </motion.article>
+          ))}
+        </section>
+
+        <section className="dashboard-grid">
+          <div className="page-stack">
+            <TimeInOut onAttendanceUpdate={loadDashboard} />
+
+            <div className="chart-card">
+              <div className="card-title-row">
+                <div>
+                  <span className="eyebrow">Weekly Rhythm</span>
+                  <h2>Worked hours and late minutes</h2>
+                </div>
+                <span className="pill">
+                  <span className="status-dot" />
+                  Live sync
                 </span>
-                <span className={styles.headerDot}>•</span>
-                <span className={styles.clock}>
-                  {format(now, "hh:mm:ss a")}
-                </span>
               </div>
-              <div className={styles.headerMonth}>
-                {format(new Date(), "MMMM yyyy")}
+              <div className="chart-height">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={weeklyChart}>
+                    <defs>
+                      <linearGradient id="hoursGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.45} />
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
+                    <XAxis dataKey="day" stroke="#8fa2cb" tickLine={false} axisLine={false} />
+                    <YAxis stroke="#8fa2cb" tickLine={false} axisLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="hours"
+                      name="Hours"
+                      stroke="#06b6d4"
+                      fill="url(#hoursGradient)"
+                      strokeWidth={3}
+                    />
+                    <Bar dataKey="late" name="Late minutes" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                  </ComposedChart>
+                </ResponsiveContainer>
               </div>
-            </div>
-
-            {/* Bottom row: title + subtitle */}
-            <div className={styles.headerLeft}>
-              <h1 className={styles.headerTitle}>
-                Welcome Back <span className={styles.wave}>👋</span>
-              </h1>
-              <p className={styles.headerSubtitle}>
-                Here's your attendance overview for this month.
-              </p>
-            </div>
-          </header>
-
-          {/* ── STATS GRID ── */}
-          <div className={styles.statsGrid}>
-            <StatCard
-              label="Total Days"
-              value={stats.total_days}
-              accent="default"
-              icon={<FaCalendarAlt />}
-            />
-            <StatCard
-              label="Present"
-              value={stats.present}
-              accent="green"
-              icon={<FaCheckCircle />}
-            />
-            <StatCard
-              label="Late Days"
-              value={stats.late}
-              accent="amber"
-              icon={<FaClock />}
-            />
-            <StatCard
-              label="Late Minutes"
-              value={stats.total_late_minutes}
-              accent="red"
-              icon={<FaHourglassHalf />}
-            />
-            <StatCard
-              label="Absent"
-              value={stats.absent}
-              accent="gray"
-              icon={<FaTimesCircle />}
-            />
-            <StatCard
-              label="Total Hours"
-              value={stats.total_hours}
-              accent="blue"
-              icon={<MdAccessTime />}
-              subtitle="hours"
-            />
-          </div>
-
-          {/* ── ATTENDANCE RATE CARD ── */}
-          <div className={styles.rateCard}>
-            <div className={styles.rateHeader}>
-              <div>
-                <h2>Monthly Attendance Rate</h2>
-                <p>{attendanceMessage}</p>
-              </div>
-              <strong className={styles.ratePercentage}>
-                {attendanceRate}%
-              </strong>
-            </div>
-            <div className={styles.rateTrack}>
-              <div
-                className={styles.rateFill}
-                style={{ width: `${attendanceRate}%` }}
-              />
             </div>
           </div>
 
-          {/* ── RECENT ATTENDANCE TABLE ── */}
-          <div className={styles.recentSection}>
-            <div className={styles.sectionHeader}>
-              <h2 className={styles.sectionTitle}>Recent Attendance</h2>
-              <button
-                className={styles.viewAllButton}
-                onClick={() => navigate("/user/myattendance")}
-              >
-                View All <FaArrowRight />
-              </button>
+          <aside className="page-stack">
+            <div className="chart-card">
+              <div className="card-title-row">
+                <div>
+                  <span className="eyebrow">Monthly Overview</span>
+                  <h3>Attendance mix</h3>
+                </div>
+                <FiBarChart2 />
+              </div>
+              <div className="compact-chart">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyChart}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
+                    <XAxis dataKey="week" stroke="#8fa2cb" tickLine={false} axisLine={false} />
+                    <YAxis stroke="#8fa2cb" tickLine={false} axisLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="present" stackId="a" fill={chartColors.present} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="late" stackId="a" fill={chartColors.late} />
+                    <Bar dataKey="absent" stackId="a" fill={chartColors.absent} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            {loading ? (
-              <div className={styles.loadingState}>
-                <span>Loading your attendance records...</span>
+            <div className="glass-card">
+              <div className="card-title-row">
+                <h3>Quick Actions</h3>
+                <FiActivity />
               </div>
-            ) : error ? (
-              <div className={styles.errorState}>
-                <span>⚠️ {error}</span>
+              <div className="quick-action-grid">
+                <Link className="quick-action" to="/user/myattendance">
+                  <FiLogIn />
+                  Attendance
+                </Link>
+                <Link className="quick-action" to="/user/logs">
+                  <FiFileText />
+                  Logs
+                </Link>
+                <Link className="quick-action" to="/user/leave">
+                  <FiCalendar />
+                  Leave
+                </Link>
+                <button className="quick-action" type="button" onClick={() => window.print()}>
+                  <FiCheckCircle />
+                  Print DTR
+                </button>
               </div>
-            ) : (
-              <div className={styles.tableWrapper}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Time In</th>
-                      <th>Time Out</th>
-                      <th>Status</th>
-                      <th>Hours</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentAttendance.length > 0 ? (
-                      recentAttendance.map((record) => (
-                        <tr key={record.id}>
-                          <td>{safeFormat(record.date, "MMM dd, yyyy")}</td>
-                          <td>{safeFormat(record.time_in, "hh:mm a")}</td>
-                          <td>
-                            {record.time_out
-                              ? safeFormat(record.time_out, "hh:mm a")
-                              : "—"}
-                          </td>
-                          <td className={statusClass(record.status)}>
-                            {record.status || "—"}
-                          </td>
-                          <td>{record.hours_worked || "—"}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="5" className={styles.noData}>
-                          No attendance records found
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+            </div>
+
+            <div className="table-card">
+              <div className="card-title-row">
+                <h3>Recent Activity</h3>
+                <span className="pill">{pendingLeaves} pending leaves</span>
               </div>
-            )}
-          </div>
-        </div>
+              <div className="timeline">
+                {recentRecords.map((record) => (
+                  <div className="timeline-item" key={record.id}>
+                    <span className="timeline-icon">
+                      <FiClock />
+                    </span>
+                    <div>
+                      <strong>{formatDate(record.date, "MMM dd")}</strong>
+                      <p className="muted">
+                        {formatTime(getRecordStart(record))} to {formatTime(getRecordEnd(record))}
+                      </p>
+                      <span className={`badge ${record.status}`}>{getStatusLabel(record.status)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </section>
       </div>
-    </div>
+    </AppShell>
   );
 }

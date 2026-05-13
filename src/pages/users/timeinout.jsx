@@ -12,7 +12,7 @@ import {
   FiUser,
 } from "react-icons/fi";
 import "./timeinout.css";
-import Loader from "../../components/common/Loader";
+import Loader from "../../components/common/loader";
 
 export default function TimeInOut({ onAttendanceUpdate }) {
   const [loading, setLoading] = useState(false);
@@ -91,10 +91,10 @@ export default function TimeInOut({ onAttendanceUpdate }) {
     );
 
   const handleLunchOut = () =>
-    handleAttendanceAction(attendanceAPI.lunchOut, "Lunch time out successful!");
+    handleAttendanceAction(attendanceAPI.lunchOut, "Break out successful!");
 
   const handleLunchIn = () =>
-    handleAttendanceAction(attendanceAPI.lunchIn, "Lunch time in successful!");
+    handleAttendanceAction(attendanceAPI.lunchIn, "Break in successful!");
 
   const handleAfternoonOut = () =>
     handleAttendanceAction(
@@ -103,7 +103,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
     );
 
   const calculateDuration = () => {
-    if (!todayAttendance?.time_in) return null;
+    if (!getSessionTime("morning_time_in", "time_in")) return null;
 
     const timeIn = new Date(getSessionTime("morning_time_in", "time_in"));
     const endTime = getSessionTime("afternoon_time_out", "time_out");
@@ -178,7 +178,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
               <span className="menu-icon">
                 <FiLogOut />
               </span>
-              <span className="menu-text">Lunch Out</span>
+              <span className="menu-text">Break Out</span>
             </button>
             <button
               className="menu-item clock-in"
@@ -189,7 +189,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
               <span className="menu-icon">
                 <FiLogIn />
               </span>
-              <span className="menu-text">Lunch In</span>
+              <span className="menu-text">Break In</span>
             </button>
             <button
               className="menu-item clock-out"
@@ -229,7 +229,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
               </div>
 
               <div className="attendance-item">
-                <div className="item-label">Lunch Out</div>
+                <div className="item-label">Break Out</div>
                 <div className="item-value">
                   {lunchOut
                     ? format(new Date(lunchOut), "hh:mm:ss a")
@@ -238,7 +238,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
               </div>
 
               <div className="attendance-item">
-                <div className="item-label">Lunch In</div>
+                <div className="item-label">Break In</div>
                 <div className="item-value">
                   {lunchIn ? format(new Date(lunchIn), "hh:mm:ss a") : "-"}
                 </div>
@@ -285,7 +285,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
               <FiUser />
             </div>
             <p className="no-attendance-text">No attendance record today</p>
-            <p className="no-attendance-hint">Open actions to clock in</p>
+            <p className="no-attendance-hint">Awaiting first punch</p>
           </div>
         )}
 
@@ -345,7 +345,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
               ) : (
                 <>
                   <FiLogOut />
-                  Lunch Out
+                  Break Out
                 </>
               )}
             </button>
@@ -366,7 +366,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
               ) : (
                 <>
                   <FiLogIn />
-                  Lunch In
+                  Break In
                 </>
               )}
             </button>
@@ -397,7 +397,7 @@ export default function TimeInOut({ onAttendanceUpdate }) {
         <div className="timeinout-info">
           <p className="info-text">
             <FiInfo />
-            Complete the day in order: morning in, lunch out, lunch in, afternoon out.
+            Shift checkpoint sequence active.
           </p>
         </div>
       </div>

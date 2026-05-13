@@ -1,186 +1,216 @@
-import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "../../context/AuthContext";
-import "./userlogs.css";
-import Sidebar from "../../components/common/Sidebar";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
+import {
+  FiActivity,
+  FiChevronLeft,
+  FiChevronRight,
+  FiDownload,
+  FiFilter,
+  FiMonitor,
+  FiSearch,
+} from "react-icons/fi";
+import AppShell from "../../components/common/AppShell";
+import {
+  exportRowsToCsv,
+  getBrowserDevice,
+  logAPI,
+  realtimeAPI,
+} from "../../services/api";
+import { seedLogs } from "../../data/platformSeed";
+import { formatDate, getStatusLabel } from "../../utils/attendance";
 
-function generateMockLogs() {
-  return [
-    {
-      id: 1,
-      action: "Clock In",
-      timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-      status: "success",
-      details: "Morning check-in",
-    },
-    {
-      id: 2,
-      action: "Clock Out",
-      timestamp: new Date(
-        Date.now() - 1 * 24 * 60 * 60 * 1000 - 8 * 60 * 60 * 1000
-      ),
-      status: "success",
-      details: "End of shift",
-    },
-    {
-      id: 3,
-      action: "Clock In",
-      timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      status: "success",
-      details: "Morning check-in",
-    },
-    {
-      id: 4,
-      action: "Leave Request",
-      timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-      status: "pending",
-      details: "Half-day leave",
-    },
-    {
-      id: 5,
-      action: "Clock In",
-      timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-      status: "success",
-      details: "Morning check-in",
-    },
-  ];
-}
+const pageSize = 8;
 
 export default function MyLogs() {
-  const { user } = useAuth();
-  const userId = user?.id;
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
-  const fetchUserLogs = useCallback(async () => {
+  const loadLogs = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      // Replace with your actual API endpoint
-      const response = await fetch(`/api/logs/user/${userId}`);
-      const data = await response.json();
-      setLogs(data || []);
+      const data = await logAPI.getMyLogs();
+      setLogs(data);
     } catch (error) {
-      console.error("Failed to fetch logs:", error);
-      // Mock data for development
-      setLogs(generateMockLogs());
+      console.warn("Logs preview data loaded:", error?.message);
+      setLogs(seedLogs);
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchUserLogs();
-  }, [fetchUserLogs]);
+    const handle = window.setTimeout(loadLogs, 0);
+    return () => window.clearTimeout(handle);
+  }, [loadLogs]);
 
-  const filteredLogs = logs.filter((log) => {
-    const matchesFilter = filter === "all" || log.status === filter;
-    const matchesSearch = 
-      log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.details.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+  useEffect(() => {
+    const unsubscribeActivity = realtimeAPI.subscribeToTable("activity_logs", loadLogs);
+    const unsubscribeAttendance = realtimeAPI.subscribeToTable("attendance_logs", loadLogs);
+    return () => {
+      unsubscribeActivity();
+      unsubscribeAttendance();
+    };
+  }, [loadLogs]);
 
-  if (loading) {
-    return (
-      <>
-        <Sidebar />
-        <div className="logs-container">
-          <div className="loading">Loading your logs...</div>
-        </div>
-      </>
-    );
-  }
+  const filteredLogs = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return logs.filter((log) => {
+      const matchesFilter = filter === "all" || log.status === filter || log.log_type === filter;
+      const text = `${log.action || ""} ${log.description || ""} ${log.device || ""}`.toLowerCase();
+      return matchesFilter && (!term || text.includes(term));
+    });
+  }, [filter, logs, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+  const pageLogs = filteredLogs.slice((page - 1) * pageSize, page * pageSize);
+
+  const exportLogs = () => {
+    exportRowsToCsv("my-activity-logs.csv", filteredLogs, [
+      { label: "Action", value: "action" },
+      { label: "Status", value: "status" },
+      { label: "Timestamp", value: (row) => formatDate(row.timestamp || row.created_at, "yyyy-MM-dd hh:mm a") },
+      { label: "Device", value: "device" },
+      { label: "Details", value: "description" },
+    ]);
+    toast.success("Logs exported.");
+  };
 
   return (
-    <>
-      <Sidebar />
-      <div className="logs-container">
-        <div className="logs-header">
-          <h1>My Activity Logs</h1>
-          <p>View all your attendance and system activity</p>
-        </div>
-
-        <div className="logs-controls">
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder="Search logs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+    <AppShell>
+      <div className="page page-stack">
+        <header className="page-header">
+          <div>
+            <span className="eyebrow">Activity Timeline</span>
+            <h1 className="page-title">My Logs</h1>
+            <p className="page-subtitle">Current device: {getBrowserDevice()}</p>
           </div>
+          <button className="primary-btn" type="button" onClick={exportLogs} disabled={!filteredLogs.length}>
+            <FiDownload />
+            Export
+          </button>
+        </header>
 
-          <div className="filter-buttons">
-            <button
-              className={`filter-btn ${filter === "all" ? "active" : ""}`}
-              onClick={() => setFilter("all")}
-            >
-              All Logs
-            </button>
-            <button
-              className={`filter-btn ${filter === "success" ? "active" : ""}`}
-              onClick={() => setFilter("success")}
-            >
-              Success
-            </button>
-            <button
-              className={`filter-btn ${filter === "pending" ? "active" : ""}`}
-              onClick={() => setFilter("pending")}
-            >
-              Pending
-            </button>
-            <button
-              className={`filter-btn ${filter === "failed" ? "active" : ""}`}
-              onClick={() => setFilter("failed")}
-            >
-              Failed
-            </button>
+        <section className="toolbar-card">
+          <div className="toolbar-search">
+            <FiSearch />
+              <input
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search logs"
+              />
           </div>
-        </div>
+          <label className="select-control">
+            <FiFilter />
+            <select
+              value={filter}
+              onChange={(event) => {
+                setFilter(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="all">All Logs</option>
+              <option value="success">Success</option>
+              <option value="pending">Pending</option>
+              <option value="failed">Failed</option>
+              <option value="attendance">Attendance</option>
+              <option value="activity">System</option>
+            </select>
+          </label>
+        </section>
 
-        <div className="logs-table-wrapper">
-          {filteredLogs.length > 0 ? (
-            <table className="logs-table">
-              <thead>
-                <tr>
-                  <th>Action</th>
-                  <th>Status</th>
-                  <th>Date & Time</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredLogs.map((log) => (
-                  <tr key={log.id} className={`log-row ${log.status}`}>
-                    <td className="action-cell">
-                      <span className="action-badge">{log.action}</span>
-                    </td>
-                    <td className="status-cell">
-                      <span className={`status-badge ${log.status}`}>
-                        {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="timestamp-cell">
-                      {log.timestamp.toLocaleString()}
-                    </td>
-                    <td className="details-cell">{log.details}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="no-logs">
-              <p>No logs found matching your criteria</p>
+        <section className="logs-grid">
+          <div className="glass-card">
+            <div className="card-title-row">
+              <div>
+                <span className="eyebrow">Event Stream</span>
+                <h2>Timeline</h2>
+              </div>
+              <span className="pill">{filteredLogs.length} events</span>
             </div>
-          )}
-        </div>
+            <div className="timeline rich">
+              {pageLogs.map((log) => (
+                <article className="timeline-item" key={log.id}>
+                  <span className="timeline-icon">
+                    <FiActivity />
+                  </span>
+                  <div>
+                    <div className="timeline-title-row">
+                      <strong>{(log.action || "activity").replaceAll(".", " ")}</strong>
+                      <span className={`badge ${log.status || "success"}`}>
+                        {getStatusLabel(log.status || "success")}
+                      </span>
+                    </div>
+                    <p className="muted">{log.description || log.details || "Activity recorded"}</p>
+                    <small>
+                      {formatDate(log.timestamp || log.created_at, "MMM dd, yyyy hh:mm a")}
+                    </small>
+                  </div>
+                </article>
+              ))}
+              {!pageLogs.length && (
+                <div className="empty-state">
+                  {loading ? "Loading logs..." : "No logs found."}
+                </div>
+              )}
+            </div>
+          </div>
 
-        <div className="logs-footer">
-          <p>Total Logs: <strong>{filteredLogs.length}</strong></p>
-        </div>
+          <div className="table-card">
+            <div className="card-title-row">
+              <h2>Device and Login History</h2>
+              <FiMonitor />
+            </div>
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Action</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Device</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageLogs.map((log) => (
+                    <tr key={`${log.id}-row`}>
+                      <td>{(log.action || "activity").replaceAll(".", " ")}</td>
+                      <td><span className={`badge ${log.status || "success"}`}>{getStatusLabel(log.status || "success")}</span></td>
+                      <td>{formatDate(log.timestamp || log.created_at, "MMM dd, hh:mm a")}</td>
+                      <td>{log.device || "Browser"}</td>
+                      <td>{log.description || log.details || "-"}</td>
+                    </tr>
+                  ))}
+                  {!pageLogs.length && (
+                    <tr>
+                      <td colSpan="5" className="empty-cell">
+                        {loading ? "Loading logs..." : "No logs found."}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="pagination-row">
+              <button className="ghost-btn" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1}>
+                <FiChevronLeft />
+                Previous
+              </button>
+              <span className="pill">Page {page} of {totalPages}</span>
+              <button className="ghost-btn" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page === totalPages}>
+                Next
+                <FiChevronRight />
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
-    </>
+    </AppShell>
   );
 }

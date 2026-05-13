@@ -8,7 +8,7 @@
   overflow: hidden;
   padding: 22px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 18px;
+  border-radius: 8px;
   background:
     radial-gradient(circle at top left, rgba(108, 99, 255, 0.12), transparent 320px),
     #0f1117;
@@ -90,7 +90,7 @@
   place-items: center;
   flex: 0 0 auto;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  border-radius: 8px;
   background: #14161f;
   color: #b8b8cc;
   cursor: pointer;
@@ -120,7 +120,7 @@
   justify-content: center;
   gap: 8px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
+  border-radius: 8px;
   background: #14161f;
   color: #f0f0f5;
   cursor: pointer;
@@ -143,7 +143,7 @@
   height: 34px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #1a1d26;
   color: #a78bfa;
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -171,7 +171,7 @@
 .no-attendance-card,
 .notes-section {
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
+  border-radius: 8px;
   background: #14161f;
 }
 
@@ -190,7 +190,7 @@
   min-height: 96px;
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
+  border-radius: 8px;
   background: #1a1d26;
 }
 
@@ -250,7 +250,7 @@
   display: grid;
   place-items: center;
   margin-bottom: 14px;
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(108, 99, 255, 0.15);
   color: #a78bfa;
   font-size: 25px;
@@ -288,7 +288,7 @@
   min-height: 92px;
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 8px;
   background: #0f1117;
   color: #f0f0f5;
   font: inherit;
@@ -323,7 +323,7 @@
   gap: 8px;
   flex: 1;
   border: 0;
-  border-radius: 12px;
+  border-radius: 8px;
   color: #ffffff;
   font-weight: 800;
   cursor: pointer;

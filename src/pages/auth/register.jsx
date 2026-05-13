@@ -1,267 +1,245 @@
-import { useState, useMemo } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { supabase } from "../../services/supabase";
+import { useMemo, useState } from "react";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import "./register.css";
+import {
+  FiBriefcase,
+  FiEye,
+  FiEyeOff,
+  FiLock,
+  FiMail,
+  FiShield,
+  FiUser,
+} from "react-icons/fi";
+import { motion } from "framer-motion";
+import { authAPI } from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
+import "./auth.css";
 
-/* ── Password strength helper ── */
-const getStrength = (pw) => {
-  if (!pw) return { score: 0, label: "", cls: "" };
-
-  let score = 0;
-  if (pw.length >= 8) score++;
-  if (/[A-Z]/.test(pw)) score++;
-  if (/[0-9]/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-
-  const map = [
-    { label: "", cls: "" },
-    { label: "Weak", cls: "weak" },
-    { label: "Fair", cls: "fair" },
-    { label: "Good", cls: "good" },
-    { label: "Strong", cls: "strong" },
-  ];
-
-  return { score, ...map[score] };
-};
-
-/* ── Password Input (ICON INSIDE INPUT) ── */
-const PasswordInput = ({
-  value,
-  onChange,
-  placeholder,
-  show,
-  toggle,
-  disabled,
-}) => {
-  return (
-    <div className="password-field">
-      <input
-        type={show ? "text" : "password"}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-      />
-
-      <span
-        className="toggle-eye"
-        onClick={toggle}
-        role="button"
-        tabIndex={0}
-        aria-label={show ? "Hide password" : "Show password"}
-      >
-        {show ? "🙈" : "👁️"}
-      </span>
-    </div>
-  );
-};
-
-const DEPARTMENTS = [
+const departments = [
   "Engineering",
   "Human Resources",
   "Finance",
-  "Marketing",
   "Operations",
   "Sales",
-  "IT",
   "Administration",
-  "Other",
+  "Support",
 ];
+
+const getStrength = (password) => {
+  let score = 0;
+  if (password.length >= 8) score += 1;
+  if (/[A-Z]/.test(password)) score += 1;
+  if (/[0-9]/.test(password)) score += 1;
+  if (/[^A-Za-z0-9]/.test(password)) score += 1;
+
+  return ["", "Weak", "Fair", "Good", "Strong"][score];
+};
 
 const Register = () => {
   const navigate = useNavigate();
-
+  const { user, isAdmin } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
     email: "",
     department: "",
     password: "",
-    confirm: "",
+    confirmPassword: "",
   });
 
-  const [showPw, setShowPw] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const strength = useMemo(() => getStrength(form.password), [form.password]);
 
-  const set = (key) => (e) =>
-    setForm((prev) => ({ ...prev, [key]: e.target.value }));
+  if (user) {
+    return (
+      <Navigate to={isAdmin ? "/admin/dashboard" : "/user/dashboard"} replace />
+    );
+  }
 
-  const strength = useMemo(
-    () => getStrength(form.password),
-    [form.password]
-  );
+  const set = (key) => (event) => {
+    setForm((prev) => ({ ...prev, [key]: event.target.value }));
+  };
 
-  /* ── Validation (GMAIL ONLY) ── */
   const validate = () => {
     const email = form.email.trim().toLowerCase();
-
-    if (!form.firstName.trim() || !form.lastName.trim())
-      return "First and last name are required.";
-
-    if (!email) return "Email is required.";
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      return "Please enter a valid email address.";
-
-    if (!email.endsWith("@gmail.com"))
-      return "Only Gmail accounts are allowed.";
-
-    if (!form.department)
-      return "Please select a department.";
-
-    if (form.password.length < 8)
-      return "Password must be at least 8 characters.";
-
-    if (form.password !== form.confirm)
-      return "Passwords do not match.";
-
+    if (!form.firstName.trim() || !form.lastName.trim()) return "Name is required.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Use a valid email.";
+    if (!form.department) return "Select a department.";
+    if (form.password.length < 8) return "Password must be at least 8 characters.";
+    if (form.password !== form.confirmPassword) return "Passwords do not match.";
     return null;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const err = validate();
-    if (err) return toast.error(err);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const error = validate();
+    if (error) {
+      toast.error(error);
+      return;
+    }
 
     setLoading(true);
-
     try {
-      const { data: authData, error: authError } =
-        await supabase.auth.signUp({
-          email: form.email.trim().toLowerCase(),
-          password: form.password,
-          options: {
-            data: {
-              full_name: `${form.firstName.trim()} ${form.lastName.trim()}`,
-              department: form.department,
-            },
-          },
-        });
-
-      if (authError) throw authError;
-
-      if (authData.user) {
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .upsert({
-            id: authData.user.id,
-            email: form.email.trim().toLowerCase(),
-            full_name: `${form.firstName.trim()} ${form.lastName.trim()}`,
-            department: form.department,
-            role: "employee",
-          });
-
-        if (profileError)
-          console.warn("Profile warning:", profileError.message);
-      }
-
-      toast.success("Account created! Check your Gmail inbox.", {
-        duration: 5000,
+      await authAPI.register({
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        fullName: `${form.firstName.trim()} ${form.lastName.trim()}`,
+        department: form.department,
       });
-
-      navigate("/login");
+      toast.success("Account created. Check your inbox to verify your email.");
+      navigate("/login", { replace: true });
     } catch (err) {
-      toast.error(err.message || "Registration failed.");
+      toast.error(err?.message || "Registration failed.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="auth-card">
-      <div className="auth-brand">
-        <span className="auth-app-name">GAMING STARTUP</span>
-      </div>
-
-      <div className="auth-heading">
-        <h2>Create your account</h2>
-        <p>Fill in your details to get started.</p>
-      </div>
-
-      <form className="auth-form" onSubmit={handleSubmit}>
-        {/* Name */}
-        <div className="field-row">
-          <input
-            type="text"
-            placeholder="First Name"
-            value={form.firstName}
-            onChange={set("firstName")}
-            disabled={loading}
-          />
-          <input
-            type="text"
-            placeholder="Last Name"
-            value={form.lastName}
-            onChange={set("lastName")}
-            disabled={loading}
-          />
-        </div>
-
-        {/* Email */}
-        <input
-          type="email"
-          placeholder="you@gmail.com"
-          value={form.email}
-          onChange={set("email")}
-          disabled={loading}
-        />
-
-        {/* Department */}
-        <div className="field-row">
-          <select
-            value={form.department}
-            onChange={set("department")}
-            disabled={loading}
-          >
-            <option value="">Select Department</option>
-            {DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Password */}
-        <PasswordInput
-          value={form.password}
-          onChange={set("password")}
-          placeholder="Password"
-          show={showPw}
-          toggle={() => setShowPw((v) => !v)}
-          disabled={loading}
-        />
-
-        {/* Strength */}
-        {form.password && (
-          <div className={`strength-label ${strength.cls}`}>
-            {strength.label}
+    <main className="auth-page">
+      <motion.section
+        className="auth-card wide"
+        initial={{ opacity: 0, y: 22 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: "easeOut" }}
+      >
+        <div className="auth-brand">
+          <span className="auth-mark">
+            <FiShield />
+          </span>
+          <div>
+            <strong>DTR Nexus</strong>
+            <span>Email verification enabled</span>
           </div>
-        )}
+        </div>
 
-        {/* Confirm Password */}
-        <PasswordInput
-          value={form.confirm}
-          onChange={set("confirm")}
-          placeholder="Confirm Password"
-          show={showConfirm}
-          toggle={() => setShowConfirm((v) => !v)}
-          disabled={loading}
-        />
+        <div className="auth-heading">
+          <p>Employee enrollment</p>
+          <h1>Create account</h1>
+        </div>
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Creating..." : "Create Account"}
-        </button>
-      </form>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="auth-grid two">
+            <label className="auth-field">
+              <span>First name</span>
+              <div className="auth-input">
+                <FiUser />
+                <input
+                  value={form.firstName}
+                  onChange={set("firstName")}
+                  placeholder="Ada"
+                  disabled={loading}
+                />
+              </div>
+            </label>
 
-      <div className="auth-switch">
-        <span>Already have an account?</span>
-        <Link to="/login">Sign in</Link>
-      </div>
-    </div>
+            <label className="auth-field">
+              <span>Last name</span>
+              <div className="auth-input">
+                <FiUser />
+                <input
+                  value={form.lastName}
+                  onChange={set("lastName")}
+                  placeholder="Lovelace"
+                  disabled={loading}
+                />
+              </div>
+            </label>
+          </div>
+
+          <label className="auth-field">
+            <span>Email</span>
+            <div className="auth-input">
+              <FiMail />
+              <input
+                type="email"
+                autoComplete="email"
+                value={form.email}
+                onChange={set("email")}
+                placeholder="you@company.com"
+                disabled={loading}
+              />
+            </div>
+          </label>
+
+          <label className="auth-field">
+            <span>Department</span>
+            <div className="auth-input">
+              <FiBriefcase />
+              <select
+                value={form.department}
+                onChange={set("department")}
+                disabled={loading}
+              >
+                <option value="">Select department</option>
+                {departments.map((department) => (
+                  <option key={department} value={department}>
+                    {department}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </label>
+
+          <label className="auth-field">
+            <span>Password</span>
+            <div className="auth-input">
+              <FiLock />
+              <input
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                value={form.password}
+                onChange={set("password")}
+                placeholder="Minimum 8 characters"
+                disabled={loading}
+              />
+              <button
+                className="auth-icon-btn"
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <FiEyeOff /> : <FiEye />}
+              </button>
+            </div>
+            {strength && <i className={`strength ${strength.toLowerCase()}`}>{strength}</i>}
+          </label>
+
+          <label className="auth-field">
+            <span>Confirm password</span>
+            <div className="auth-input">
+              <FiLock />
+              <input
+                type={showConfirm ? "text" : "password"}
+                autoComplete="new-password"
+                value={form.confirmPassword}
+                onChange={set("confirmPassword")}
+                placeholder="Repeat password"
+                disabled={loading}
+              />
+              <button
+                className="auth-icon-btn"
+                type="button"
+                onClick={() => setShowConfirm((value) => !value)}
+                aria-label={showConfirm ? "Hide password" : "Show password"}
+              >
+                {showConfirm ? <FiEyeOff /> : <FiEye />}
+              </button>
+            </div>
+          </label>
+
+          <button className="auth-submit" type="submit" disabled={loading}>
+            {loading ? "Creating account..." : "Create account"}
+          </button>
+        </form>
+
+        <p className="auth-switch">
+          Already registered? <Link to="/login">Sign in</Link>
+        </p>
+      </motion.section>
+    </main>
   );
 };
 

@@ -1,77 +1,56 @@
 import { supabase } from "./supabase";
 
-// Auth API
-export const authAPI = {
-  async login(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    return data;
-  },
+export const ATTENDANCE_TABLE =
+  import.meta.env.VITE_ATTENDANCE_TABLE || "attendance";
 
-  async logout() {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-  },
-
-  async getSession() {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    return data.session;
-  },
-
-  async getCurrentUser() {
-    const { data, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    return data.user;
-  },
+const getLocalDateString = (date = new Date()) => {
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().split("T")[0];
 };
 
-// Profile API
-export const profileAPI = {
-  async getProfile(userId) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    if (error) throw error;
-    return data;
-  },
+const getBrowserDevice = () => {
+  if (typeof navigator === "undefined") return "Unknown device";
 
-  async updateProfile(userId, updates) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", userId)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
-  },
-
-  async getAllUsers() {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .order("full_name");
-    if (error) throw error;
-    return data;
-  },
-
-  async createUser(email, password, profileData) {
-    void email;
-    void password;
-    void profileData;
-    throw new Error("User creation must be handled by a trusted backend.");
-  },
-
-  async deleteUser(userId) {
-    const { error } = await supabase.from("profiles").delete().eq("id", userId);
-    if (error) throw error;
-  },
+  const ua = navigator.userAgent || "";
+  if (/android/i.test(ua)) return "Android";
+  if (/iphone|ipad|ipod/i.test(ua)) return "iOS";
+  if (/mac/i.test(ua)) return "macOS";
+  if (/windows/i.test(ua)) return "Windows";
+  if (/linux/i.test(ua)) return "Linux";
+  return "Web browser";
 };
 
-// Attendance API
+const toCsvValue = (value) => {
+  const next = value ?? "";
+  return `"${String(next).replaceAll('"', '""')}"`;
+};
+
+export const exportRowsToCsv = (filename, rows, columns) => {
+  const header = columns.map((column) => toCsvValue(column.label)).join(",");
+  const body = rows
+    .map((row) =>
+      columns
+        .map((column) => {
+          const value =
+            typeof column.value === "function"
+              ? column.value(row)
+              : row[column.value];
+          return toCsvValue(value);
+        })
+        .join(",")
+    )
+    .join("\n");
+
+  const blob = new Blob([`${header}\n${body}`], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+};
+
 const getAuthenticatedUser = async () => {
   const {
     data: { user },
@@ -84,39 +63,6 @@ const getAuthenticatedUser = async () => {
   return user;
 };
 
-const getLocalDateString = (date = new Date()) => {
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return offsetDate.toISOString().split("T")[0];
-};
-
-const getAttendanceStatus = (timeIn) => {
-  const date = new Date(timeIn);
-  const lateMinutes = (date.getHours() - 8) * 60 + date.getMinutes();
-
-  if (lateMinutes > 0) {
-    return { status: "late", late_minutes: lateMinutes };
-  }
-
-  return { status: "present", late_minutes: 0 };
-};
-
-const getAttendanceStats = (records) => ({
-  total_days: records.length,
-  present: records.filter((record) => record.status === "present").length,
-  late: records.filter((record) => record.status === "late").length,
-  absent: records.filter((record) => record.status === "absent").length,
-  half_day: records.filter(
-    (record) => record.status === "half-day" || record.status === "halfday"
-  ).length,
-  total_late_minutes: records.reduce(
-    (sum, record) => sum + (Number(record.late_minutes) || 0),
-    0
-  ),
-  total_hours: records
-    .reduce((sum, record) => sum + (Number(record.hours_worked) || 0), 0)
-    .toFixed(2),
-});
-
 const getMissingSchemaColumn = (error) => {
   if (error?.code !== "PGRST204") return null;
 
@@ -126,14 +72,14 @@ const getMissingSchemaColumn = (error) => {
 
 const runWithSchemaFallback = async (createQuery, payload) => {
   let nextPayload = { ...payload };
+  const maxAttempts = Object.keys(payload).length + 1;
 
-  for (let attempt = 0; attempt < Object.keys(payload).length + 1; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const { data, error } = await createQuery(nextPayload);
 
     if (!error) return data;
 
     const missingColumn = getMissingSchemaColumn(error);
-
     if (!missingColumn || !(missingColumn in nextPayload)) {
       throw error;
     }
@@ -143,7 +89,7 @@ const runWithSchemaFallback = async (createQuery, payload) => {
     );
   }
 
-  throw new Error("Attendance schema does not match the required fields.");
+  throw new Error("Database schema does not match the requested payload.");
 };
 
 const calculateHoursWorked = (startTime, endTime) => {
@@ -170,17 +116,310 @@ const calculateSplitHours = (record, endTime) => {
     return Number((morningHours + afternoonHours).toFixed(2));
   }
 
-  return calculateHoursWorked(record.time_in, endTime);
+  return calculateHoursWorked(record.time_in || record.morning_time_in, endTime);
+};
+
+const getAttendanceStatus = (timeIn, graceMinutes = 15) => {
+  const date = new Date(timeIn);
+  const shiftStart = new Date(date);
+  shiftStart.setHours(8, graceMinutes, 0, 0);
+  const lateMinutes = Math.max(
+    0,
+    Math.round((date.getTime() - shiftStart.getTime()) / 60000)
+  );
+
+  if (lateMinutes > 0) {
+    return { status: "late", late_minutes: lateMinutes };
+  }
+
+  return { status: "present", late_minutes: 0 };
+};
+
+const getAttendanceStats = (records) => {
+  const present = records.filter((record) =>
+    ["present", "late", "overtime", "half-day", "halfday"].includes(
+      record.status
+    )
+  ).length;
+  const late = records.filter((record) => record.status === "late").length;
+  const absent = records.filter((record) => record.status === "absent").length;
+  const totalLateMinutes = records.reduce(
+    (sum, record) => sum + (Number(record.late_minutes) || 0),
+    0
+  );
+  const totalHours = records.reduce(
+    (sum, record) => sum + (Number(record.hours_worked) || 0),
+    0
+  );
+
+  return {
+    total_days: records.length,
+    present,
+    late,
+    absent,
+    half_day: records.filter((record) =>
+      ["half-day", "halfday"].includes(record.status)
+    ).length,
+    total_late_minutes: totalLateMinutes,
+    total_hours: Number(totalHours.toFixed(2)),
+    attendance_percentage: records.length
+      ? Math.round((present / records.length) * 100)
+      : 0,
+  };
+};
+
+const addActivityLog = async ({
+  action,
+  description,
+  status = "success",
+  targetUserId,
+  metadata = {},
+}) => {
+  try {
+    const user = await getAuthenticatedUser();
+
+    await runWithSchemaFallback(
+      (payload) =>
+        supabase.from("activity_logs").insert(payload).select("id").single(),
+      {
+        actor_id: user.id,
+        target_user_id: targetUserId || user.id,
+        action,
+        description,
+        status,
+        device: getBrowserDevice(),
+        user_agent:
+          typeof navigator === "undefined" ? null : navigator.userAgent,
+        metadata,
+      }
+    );
+  } catch {
+    // Activity logging should never block the user's primary workflow.
+  }
+};
+
+const addAttendanceLog = async ({
+  attendanceId,
+  eventType,
+  eventTime,
+  metadata = {},
+}) => {
+  try {
+    const user = await getAuthenticatedUser();
+
+    await runWithSchemaFallback(
+      (payload) =>
+        supabase
+          .from("attendance_logs")
+          .insert(payload)
+          .select("id")
+          .single(),
+      {
+        attendance_id: attendanceId,
+        user_id: user.id,
+        event_type: eventType,
+        event_time: eventTime || new Date().toISOString(),
+        device: getBrowserDevice(),
+        user_agent:
+          typeof navigator === "undefined" ? null : navigator.userAgent,
+        metadata,
+      }
+    );
+  } catch {
+    // Attendance writes remain the source of truth if log tables are absent.
+  }
+};
+
+export const authAPI = {
+  async login(email, password) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+
+    await addActivityLog({
+      action: "login",
+      description: "Signed in to DTR Nexus",
+      targetUserId: data.user?.id,
+    });
+
+    return data;
+  },
+
+  async register({ email, password, fullName, department }) {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+        data: {
+          full_name: fullName,
+          department,
+        },
+      },
+    });
+    if (error) throw error;
+
+    if (data.user) {
+      try {
+        await supabase.from("profiles").upsert({
+          id: data.user.id,
+          email,
+          full_name: fullName,
+          department,
+          role: "employee",
+          is_active: true,
+        });
+      } catch {
+        // Hosted projects with email verification may rely on the DB trigger.
+      }
+    }
+
+    return data;
+  },
+
+  async resetPassword(email) {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/update-password`,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  async updatePassword(password) {
+    const { data, error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+    return data;
+  },
+
+  async logout() {
+    await addActivityLog({
+      action: "logout",
+      description: "Signed out of DTR Nexus",
+    });
+
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    if (error) throw error;
+  },
+
+  async getSession() {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return data.session;
+  },
+
+  async getCurrentUser() {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    return data.user;
+  },
+};
+
+export const profileAPI = {
+  async getProfile(userId) {
+    const related = await supabase
+      .from("profiles")
+      .select("*, departments(name, code), shifts(name, start_time, end_time)")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!related.error) return related.data;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async ensureProfile(user) {
+    if (!user) return null;
+
+    const existing = await profileAPI.getProfile(user.id);
+    if (existing) return existing;
+
+    const fullName =
+      user.user_metadata?.full_name || user.email?.split("@")[0] || "Employee";
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .upsert({
+        id: user.id,
+        email: user.email,
+        full_name: fullName,
+        department: user.user_metadata?.department || "Unassigned",
+        role: user.app_metadata?.role === "admin" ? "admin" : "employee",
+        is_active: true,
+      })
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async updateProfile(userId, updates) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .update(updates)
+      .eq("id", userId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getAllUsers() {
+    const related = await supabase
+      .from("profiles")
+      .select("*, departments(name, code), shifts(name, start_time, end_time)")
+      .order("full_name", { ascending: true });
+
+    if (!related.error) return related.data || [];
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("full_name", { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async uploadAvatar(file, userId) {
+    const user = await getAuthenticatedUser();
+    const ownerId = userId || user.id;
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const path = `${ownerId}/${Date.now()}-${safeName}`;
+
+    const { error } = await supabase.storage
+      .from("profile-images")
+      .upload(path, file, { upsert: true });
+    if (error) throw error;
+
+    const { data } = supabase.storage
+      .from("profile-images")
+      .getPublicUrl(path);
+
+    const avatar_url = data.publicUrl;
+    await profileAPI.updateProfile(ownerId, { avatar_url });
+    return avatar_url;
+  },
 };
 
 export const attendanceAPI = {
-  async morningIn(location = "", notes = "") {
+  async morningIn(location = "", notes = "", coordinates = {}) {
     const user = await getAuthenticatedUser();
     const now = new Date();
     const today = getLocalDateString(now);
 
     const { data: existing, error: existingError } = await supabase
-      .from("attendance")
+      .from(ATTENDANCE_TABLE)
       .select("*")
       .eq("user_id", user.id)
       .eq("date", today)
@@ -190,30 +429,44 @@ export const attendanceAPI = {
     if (existing) throw new Error("Already timed in today.");
 
     const { status, late_minutes } = getAttendanceStatus(now);
-
-    return runWithSchemaFallback(
+    const attendance = await runWithSchemaFallback(
       (payload) =>
-        supabase
-          .from("attendance")
-          .insert([payload])
-          .select()
-          .single(),
+        supabase.from(ATTENDANCE_TABLE).insert(payload).select("*").single(),
       {
         user_id: user.id,
         date: today,
         time_in: now.toISOString(),
         morning_time_in: now.toISOString(),
         location,
+        latitude: coordinates.latitude ?? null,
+        longitude: coordinates.longitude ?? null,
         notes,
         status,
         late_minutes,
+        overtime_minutes: 0,
+        undertime_minutes: 0,
         hours_worked: 0,
+        source: "web",
       }
     );
+
+    await addAttendanceLog({
+      attendanceId: attendance.id,
+      eventType: "time_in",
+      eventTime: now.toISOString(),
+      metadata: { location },
+    });
+    await addActivityLog({
+      action: "attendance.time_in",
+      description: "Recorded morning time in",
+      metadata: { attendance_id: attendance.id },
+    });
+
+    return attendance;
   },
 
-  async timeIn(location = "", notes = "") {
-    return attendanceAPI.morningIn(location, notes);
+  async timeIn(location = "", notes = "", coordinates = {}) {
+    return attendanceAPI.morningIn(location, notes, coordinates);
   },
 
   async lunchOut() {
@@ -222,7 +475,7 @@ export const attendanceAPI = {
     const today = getLocalDateString(now);
 
     const { data: existing, error: fetchError } = await supabase
-      .from("attendance")
+      .from(ATTENDANCE_TABLE)
       .select("*")
       .eq("user_id", user.id)
       .eq("date", today)
@@ -230,20 +483,30 @@ export const attendanceAPI = {
 
     if (fetchError) throw fetchError;
     if (!existing) throw new Error("No time-in record found for today.");
-    if (existing.lunch_time_out) throw new Error("Already timed out for lunch.");
+    if (existing.lunch_time_out) throw new Error("Lunch out is already recorded.");
 
-    return runWithSchemaFallback(
+    const attendance = await runWithSchemaFallback(
       (payload) =>
         supabase
-          .from("attendance")
+          .from(ATTENDANCE_TABLE)
           .update(payload)
           .eq("id", existing.id)
-          .select()
+          .select("*")
           .single(),
-      {
-        lunch_time_out: now.toISOString(),
-      }
+      { lunch_time_out: now.toISOString() }
     );
+
+    await addAttendanceLog({
+      attendanceId: attendance.id,
+      eventType: "break_out",
+      eventTime: now.toISOString(),
+    });
+
+    return attendance;
+  },
+
+  async breakOut() {
+    return attendanceAPI.lunchOut();
   },
 
   async lunchIn() {
@@ -252,7 +515,7 @@ export const attendanceAPI = {
     const today = getLocalDateString(now);
 
     const { data: existing, error: fetchError } = await supabase
-      .from("attendance")
+      .from(ATTENDANCE_TABLE)
       .select("*")
       .eq("user_id", user.id)
       .eq("date", today)
@@ -260,21 +523,31 @@ export const attendanceAPI = {
 
     if (fetchError) throw fetchError;
     if (!existing) throw new Error("No time-in record found for today.");
-    if (!existing.lunch_time_out) throw new Error("Record lunch out first.");
-    if (existing.lunch_time_in) throw new Error("Already timed in after lunch.");
+    if (!existing.lunch_time_out) throw new Error("Record break out first.");
+    if (existing.lunch_time_in) throw new Error("Break in is already recorded.");
 
-    return runWithSchemaFallback(
+    const attendance = await runWithSchemaFallback(
       (payload) =>
         supabase
-          .from("attendance")
+          .from(ATTENDANCE_TABLE)
           .update(payload)
           .eq("id", existing.id)
-          .select()
+          .select("*")
           .single(),
-      {
-        lunch_time_in: now.toISOString(),
-      }
+      { lunch_time_in: now.toISOString() }
     );
+
+    await addAttendanceLog({
+      attendanceId: attendance.id,
+      eventType: "break_in",
+      eventTime: now.toISOString(),
+    });
+
+    return attendance;
+  },
+
+  async breakIn() {
+    return attendanceAPI.lunchIn();
   },
 
   async timeOut() {
@@ -283,7 +556,7 @@ export const attendanceAPI = {
     const today = getLocalDateString(now);
 
     const { data: existing, error: fetchError } = await supabase
-      .from("attendance")
+      .from(ATTENDANCE_TABLE)
       .select("*")
       .eq("user_id", user.id)
       .eq("date", today)
@@ -291,27 +564,55 @@ export const attendanceAPI = {
 
     if (fetchError) throw fetchError;
     if (!existing) throw new Error("No time-in record found for today.");
-    if (existing.time_out) throw new Error("Already timed out today.");
+    if (existing.time_out || existing.afternoon_time_out) {
+      throw new Error("Already timed out today.");
+    }
     if (existing.lunch_time_out && !existing.lunch_time_in) {
-      throw new Error("Record lunch in first.");
+      throw new Error("Record break in first.");
     }
 
     const hoursWorked = calculateSplitHours(existing, now);
+    const expectedHours = 8;
+    const overtimeMinutes = Math.max(0, Math.round((hoursWorked - expectedHours) * 60));
+    const undertimeMinutes = Math.max(0, Math.round((expectedHours - hoursWorked) * 60));
+    const nextStatus =
+      existing.status === "late"
+        ? "late"
+        : hoursWorked >= expectedHours
+          ? "present"
+          : "undertime";
 
-    return runWithSchemaFallback(
+    const attendance = await runWithSchemaFallback(
       (payload) =>
         supabase
-          .from("attendance")
+          .from(ATTENDANCE_TABLE)
           .update(payload)
           .eq("id", existing.id)
-          .select()
+          .select("*")
           .single(),
       {
         time_out: now.toISOString(),
         afternoon_time_out: now.toISOString(),
         hours_worked: hoursWorked,
+        overtime_minutes: overtimeMinutes,
+        undertime_minutes: undertimeMinutes,
+        status: nextStatus,
       }
     );
+
+    await addAttendanceLog({
+      attendanceId: attendance.id,
+      eventType: "time_out",
+      eventTime: now.toISOString(),
+      metadata: { hours_worked: hoursWorked },
+    });
+    await addActivityLog({
+      action: "attendance.time_out",
+      description: "Recorded afternoon time out",
+      metadata: { attendance_id: attendance.id },
+    });
+
+    return attendance;
   },
 
   async afternoonOut() {
@@ -323,7 +624,7 @@ export const attendanceAPI = {
     const today = getLocalDateString();
 
     const { data, error } = await supabase
-      .from("attendance")
+      .from(ATTENDANCE_TABLE)
       .select("*")
       .eq("user_id", user.id)
       .eq("date", today)
@@ -337,7 +638,7 @@ export const attendanceAPI = {
     const user = await getAuthenticatedUser();
 
     const { data, error } = await supabase
-      .from("attendance")
+      .from(ATTENDANCE_TABLE)
       .select("*")
       .eq("user_id", user.id)
       .gte("date", startDate)
@@ -350,14 +651,16 @@ export const attendanceAPI = {
   },
 
   async getAllRecords(startDate, endDate) {
-    const { data, error } = await supabase
-      .from("attendance")
-      .select("*, profiles(full_name, email, department)")
-      .gte("date", startDate)
-      .lte("date", endDate)
+    let query = supabase
+      .from(ATTENDANCE_TABLE)
+      .select("*, profiles(full_name, email, department, department_id, position)")
       .order("date", { ascending: false })
       .order("time_in", { ascending: false });
 
+    if (startDate) query = query.gte("date", startDate);
+    if (endDate) query = query.lte("date", endDate);
+
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },
@@ -367,34 +670,364 @@ export const attendanceAPI = {
     const user = await getAuthenticatedUser();
 
     let query = supabase
-      .from("attendance")
+      .from(ATTENDANCE_TABLE)
       .select("*")
       .eq("user_id", user.id);
 
-    if (startDate) {
-      query = query.gte("date", startDate);
-    }
-    if (endDate) {
-      query = query.lte("date", endDate);
-    }
+    if (startDate) query = query.gte("date", startDate);
+    if (endDate) query = query.lte("date", endDate);
 
     query = query
       .order("date", { ascending: false })
       .order("time_in", { ascending: false });
 
-    if (limit) {
-      query = query.limit(limit);
-    }
+    if (limit) query = query.limit(limit);
 
     const { data, error } = await query;
-
     if (error) throw error;
 
     const records = data || [];
-
     return {
       attendance: records,
       stats: getAttendanceStats(records),
     };
   },
 };
+
+export const departmentAPI = {
+  async getDepartments() {
+    const { data, error } = await supabase
+      .from("departments")
+      .select("*, profiles!departments_manager_id_fkey(full_name)")
+      .order("name", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async saveDepartment(payload) {
+    const query = payload.id
+      ? supabase.from("departments").update(payload).eq("id", payload.id)
+      : supabase.from("departments").insert(payload);
+    const { data, error } = await query.select("*").single();
+    if (error) throw error;
+    return data;
+  },
+};
+
+export const shiftAPI = {
+  async getShifts() {
+    const { data, error } = await supabase
+      .from("shifts")
+      .select("*")
+      .order("start_time", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async saveShift(payload) {
+    const query = payload.id
+      ? supabase.from("shifts").update(payload).eq("id", payload.id)
+      : supabase.from("shifts").insert(payload);
+    const { data, error } = await query.select("*").single();
+    if (error) throw error;
+    return data;
+  },
+
+  async getSchedules() {
+    const { data, error } = await supabase
+      .from("schedules")
+      .select("*, profiles(full_name, department), shifts(name, start_time, end_time)")
+      .order("valid_from", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async saveSchedule(payload) {
+    const query = payload.id
+      ? supabase.from("schedules").update(payload).eq("id", payload.id)
+      : supabase.from("schedules").insert(payload);
+    const { data, error } = await query.select("*").single();
+    if (error) throw error;
+    return data;
+  },
+};
+
+export const leaveAPI = {
+  async uploadDocument(file) {
+    const user = await getAuthenticatedUser();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const path = `${user.id}/${Date.now()}-${safeName}`;
+
+    const { error } = await supabase.storage
+      .from("leave-documents")
+      .upload(path, file, { upsert: false });
+    if (error) throw error;
+
+    const { data } = await supabase.storage
+      .from("leave-documents")
+      .createSignedUrl(path, 60 * 60 * 24 * 7);
+
+    return data?.signedUrl || path;
+  },
+
+  async submitRequest(payload, file) {
+    const user = await getAuthenticatedUser();
+    const documentUrl = file ? await leaveAPI.uploadDocument(file) : null;
+    const data = await runWithSchemaFallback(
+      (request) =>
+        supabase
+          .from("leave_requests")
+          .insert(request)
+          .select("*")
+          .single(),
+      {
+        user_id: user.id,
+        leave_type: payload.leave_type,
+        start_date: payload.start_date,
+        end_date: payload.end_date,
+        total_days: Number(payload.total_days) || 1,
+        reason: payload.reason,
+        document_url: documentUrl,
+        status: "pending",
+      }
+    );
+
+    await addActivityLog({
+      action: "leave.submit",
+      description: `Submitted ${payload.leave_type} leave request`,
+      metadata: { leave_request_id: data.id },
+    });
+    return data;
+  },
+
+  async getMyLeaves() {
+    const user = await getAuthenticatedUser();
+    const { data, error } = await supabase
+      .from("leave_requests")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getAllLeaves() {
+    const { data, error } = await supabase
+      .from("leave_requests")
+      .select("*, profiles(full_name, email, department)")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async reviewLeave(id, status, review_notes = "") {
+    const user = await getAuthenticatedUser();
+    const { data, error } = await supabase
+      .from("leave_requests")
+      .update({
+        status,
+        review_notes,
+        reviewed_by: user.id,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error) throw error;
+    return data;
+  },
+};
+
+export const logAPI = {
+  async getMyLogs(limit = 100) {
+    const user = await getAuthenticatedUser();
+    const [activityResult, attendanceResult] = await Promise.all([
+      supabase
+        .from("activity_logs")
+        .select("*")
+        .or(`actor_id.eq.${user.id},target_user_id.eq.${user.id}`)
+        .order("created_at", { ascending: false })
+        .limit(limit),
+      supabase
+        .from("attendance_logs")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("event_time", { ascending: false })
+        .limit(limit),
+    ]);
+
+    if (activityResult.error) throw activityResult.error;
+    if (attendanceResult.error) throw attendanceResult.error;
+
+    return [
+      ...(activityResult.data || []).map((item) => ({
+        ...item,
+        log_type: "activity",
+        timestamp: item.created_at,
+      })),
+      ...(attendanceResult.data || []).map((item) => ({
+        ...item,
+        action: item.event_type,
+        description: `Attendance event: ${item.event_type}`,
+        status: "success",
+        log_type: "attendance",
+        timestamp: item.event_time,
+      })),
+    ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  },
+
+  async getAuditTrail(limit = 250) {
+    const { data, error } = await supabase
+      .from("activity_logs")
+      .select("*, actor:profiles!activity_logs_actor_id_fkey(full_name, email)")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return data || [];
+  },
+};
+
+export const notificationAPI = {
+  async getMyNotifications() {
+    const user = await getAuthenticatedUser();
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .or(`user_id.eq.${user.id},user_id.is.null`)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) throw error;
+    return data || [];
+  },
+
+  async markRead(id) {
+    const { data, error } = await supabase
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error) throw error;
+    return data;
+  },
+};
+
+export const adminAPI = {
+  async getDashboardStats(startDate, endDate) {
+    const [users, attendance, leaves, departments] = await Promise.all([
+      profileAPI.getAllUsers(),
+      attendanceAPI.getAllRecords(startDate, endDate),
+      leaveAPI.getAllLeaves(),
+      departmentAPI.getDepartments(),
+    ]);
+
+    const today = getLocalDateString();
+    const todayRecords = attendance.filter((record) => record.date === today);
+    const activeUsers = users.filter((user) => user.is_active !== false);
+
+    return {
+      users,
+      attendance,
+      leaves,
+      departments,
+      metrics: {
+        total_users: users.length,
+        active_users: activeUsers.length,
+        checked_in_today: todayRecords.length,
+        present_today: todayRecords.filter((record) =>
+          ["present", "late", "undertime", "overtime"].includes(record.status)
+        ).length,
+        late_today: todayRecords.filter((record) => record.status === "late")
+          .length,
+        pending_leaves: leaves.filter((leave) => leave.status === "pending")
+          .length,
+        departments: departments.length,
+      },
+    };
+  },
+
+  async createEmployee(payload) {
+    const { data, error } = await supabase.functions.invoke("invite-employee", {
+      body: payload,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  async updateUser(userId, updates) {
+    return profileAPI.updateProfile(userId, updates);
+  },
+
+  async archiveUser(userId, isActive) {
+    return profileAPI.updateProfile(userId, { is_active: isActive });
+  },
+
+  async sendPasswordReset(email) {
+    return authAPI.resetPassword(email);
+  },
+
+  async getHolidays() {
+    const { data, error } = await supabase
+      .from("holidays")
+      .select("*")
+      .order("date", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async saveHoliday(payload) {
+    const query = payload.id
+      ? supabase.from("holidays").update(payload).eq("id", payload.id)
+      : supabase.from("holidays").insert(payload);
+    const { data, error } = await query.select("*").single();
+    if (error) throw error;
+    return data;
+  },
+};
+
+export const realtimeAPI = {
+  subscribeToAttendance(callback, filter) {
+    let config = { event: "*", schema: "public", table: ATTENDANCE_TABLE };
+    if (filter) config = { ...config, filter };
+
+    const channel = supabase
+      .channel(`attendance:${filter || "all"}`)
+      .on("postgres_changes", config, callback)
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  },
+
+  subscribeToTable(table, callback, filter) {
+    let config = { event: "*", schema: "public", table };
+    if (filter) config = { ...config, filter };
+
+    const channel = supabase
+      .channel(`${table}:${filter || "all"}`)
+      .on("postgres_changes", config, callback)
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  },
+
+  subscribeToPresence(user, onSync) {
+    const channel = supabase.channel("platform-presence", {
+      config: { presence: { key: user?.id || crypto.randomUUID() } },
+    });
+
+    channel
+      .on("presence", { event: "sync" }, () => onSync(channel.presenceState()))
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({
+            user_id: user?.id,
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+
+    return () => supabase.removeChannel(channel);
+  },
+};
+
+export { getAttendanceStats, getBrowserDevice, getLocalDateString };
