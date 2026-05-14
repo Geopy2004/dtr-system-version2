@@ -51,6 +51,20 @@ export const exportRowsToCsv = (filename, rows, columns) => {
   URL.revokeObjectURL(link.href);
 };
 
+const adminEmails = new Set(["admin@gmail.com", "admin@company.com"]);
+
+export const isAdminEmail = (email) =>
+  typeof email === "string" && adminEmails.has(email.toLowerCase());
+
+const isMissingTable = (error, tableName) => {
+  if (!error?.message) return false;
+  return (
+    error.message.includes(`Could not find the table 'public.${tableName}'`) ||
+    error.message.includes(`relation "${tableName}" does not exist`) ||
+    error.code === "PGRST102"
+  );
+};
+
 const getAuthenticatedUser = async () => {
   const {
     data: { user },
@@ -374,6 +388,7 @@ export const profileAPI = {
       .maybeSingle();
 
     if (!related.error) return related.data;
+    if (isMissingTable(related.error, "profiles")) return null;
 
     const { data, error } = await supabase
       .from("profiles")
@@ -381,34 +396,75 @@ export const profileAPI = {
       .eq("id", userId)
       .maybeSingle();
 
-    if (error) throw error;
-    return data;
+    if (!error) return data;
+    if (isMissingTable(error, "profiles")) return null;
+    throw error;
   },
 
   async ensureProfile(user) {
     if (!user) return null;
 
-    const existing = await profileAPI.getProfile(user.id);
-    if (existing) return existing;
+    const admin =
+      user.app_metadata?.role === "admin" || isAdminEmail(user.email);
+    const role = admin ? "admin" : "employee";
 
     const fullName =
       user.user_metadata?.full_name || user.email?.split("@")[0] || "Employee";
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .upsert({
-        id: user.id,
-        email: user.email,
-        full_name: fullName,
-        department: user.user_metadata?.department || "Unassigned",
-        role: user.app_metadata?.role === "admin" ? "admin" : "employee",
-        is_active: true,
-      })
-      .select("*")
-      .single();
+    const existing = await profileAPI.getProfile(user.id);
+    if (existing) {
+      if (admin && existing.role !== "admin") {
+        try {
+          await profileAPI.updateProfile(user.id, { role: "admin" });
+          existing.role = "admin";
+        } catch {
+          // Ignore profile update failures and return existing profile.
+        }
+      }
+      return existing;
+    }
 
-    if (error) throw error;
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .upsert({
+          id: user.id,
+          email: user.email,
+          full_name: fullName,
+          department: user.user_metadata?.department || "Unassigned",
+          role,
+          is_active: true,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        if (isMissingTable(error, "profiles")) {
+          return {
+            id: user.id,
+            email: user.email,
+            full_name: fullName,
+            department: user.user_metadata?.department || "Unassigned",
+            role,
+            is_active: true,
+          };
+        }
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      if (isMissingTable(error, "profiles")) {
+        return {
+          id: user.id,
+          email: user.email,
+          full_name: fullName,
+          department: user.user_metadata?.department || "Unassigned",
+          role,
+          is_active: true,
+        };
+      }
+      throw error;
+    }
   },
 
   async updateProfile(userId, updates) {
@@ -430,14 +486,16 @@ export const profileAPI = {
       .order("full_name", { ascending: true });
 
     if (!related.error) return related.data || [];
+    if (isMissingTable(related.error, "profiles")) return [];
 
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .order("full_name", { ascending: true });
 
-    if (error) throw error;
-    return data || [];
+    if (!error) return data || [];
+    if (isMissingTable(error, "profiles")) return [];
+    throw error;
   },
 
   async uploadAvatar(file, userId) {

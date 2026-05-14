@@ -50,13 +50,23 @@ export const AuthProvider = ({ children }) => {
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
-      setLoading(false);
 
-      setTimeout(() => {
-        if (nextSession?.user) {
-          refreshProfile(nextSession.user).catch(() => setProfile(null));
-        } else {
+      if (!nextSession?.user) {
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setProfile(null);
+
+      setTimeout(async () => {
+        try {
+          await refreshProfile(nextSession.user);
+        } catch {
           setProfile(null);
+        } finally {
+          setLoading(false);
         }
       }, 0);
     });

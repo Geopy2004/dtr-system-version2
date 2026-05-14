@@ -19,7 +19,7 @@ export default function AttendanceTable({ attendance = [] }) {
         <tbody>
           {attendance.length === 0 ? (
             <tr>
-              <td colSpan="6">No attendance records</td>
+              <td colSpan="7">No attendance records</td>
             </tr>
           ) : (
             attendance.map((item) => (

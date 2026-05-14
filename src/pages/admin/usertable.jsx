@@ -17,7 +17,7 @@ export default function UserTable({ users = [], onEdit, onDelete, onToggle }) {
         <tbody>
           {users.length === 0 ? (
             <tr>
-              <td colSpan="6">No users found</td>
+              <td colSpan="7">No users found</td>
             </tr>
           ) : (
             users.map((user) => (

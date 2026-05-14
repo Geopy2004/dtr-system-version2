@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { FiEye, FiEyeOff, FiLock, FiMail, FiShield } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
+import { isAdminEmail } from "../../services/api";
 import "./auth.css";
 
 const Login = () => {
@@ -36,11 +37,14 @@ const Login = () => {
     setLoading(true);
     try {
       const result = await login(email, form.password);
+      const isAdminUser =
+        result.profile?.role === "admin" ||
+        result.user?.app_metadata?.role === "admin" ||
+        isAdminEmail(result.user?.email);
       toast.success("Welcome back.");
-      navigate(
-        result.profile?.role === "admin" ? "/admin/dashboard" : "/user/dashboard",
-        { replace: true }
-      );
+      navigate(isAdminUser ? "/admin/dashboard" : "/user/dashboard", {
+        replace: true,
+      });
     } catch (error) {
       toast.error(error?.message || "Unable to sign in.");
     } finally {

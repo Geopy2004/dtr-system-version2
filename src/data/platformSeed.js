@@ -53,6 +53,33 @@ export const seedEmployees = [
   },
 ];
 
+export const seedUserAccounts = [
+  {
+    id: "seed-1",
+    email: "mara.santos@company.com",
+    password: "Password123!",
+    role: "employee",
+  },
+  {
+    id: "seed-2",
+    email: "ilya.reyes@company.com",
+    password: "Password123!",
+    role: "employee",
+  },
+  {
+    id: "seed-3",
+    email: "nina.cruz@company.com",
+    password: "Admin123!",
+    role: "admin",
+  },
+  {
+    id: "seed-4",
+    email: "kenji.lim@company.com",
+    password: "Password123!",
+    role: "employee",
+  },
+];
+
 export const seedDepartments = [
   { id: "dept-1", name: "Engineering", code: "ENG", is_active: true },
   { id: "dept-2", name: "Operations", code: "OPS", is_active: true },
