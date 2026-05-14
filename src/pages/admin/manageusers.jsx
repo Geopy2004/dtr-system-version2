@@ -14,6 +14,7 @@ export default function ManageUsers() {
     email: '',
     department: '',
     position: '',
+    role: 'employee',
     password: '',
   });
 
@@ -54,6 +55,7 @@ export default function ManageUsers() {
       email: '',
       department: '',
       position: '',
+      role: 'employee',
       password: '',
     });
 
@@ -68,6 +70,7 @@ export default function ManageUsers() {
       email: user?.email || '',
       department: user?.department || '',
       position: user?.position || '',
+      role: user?.role || 'employee',
       password: '',
     });
 
@@ -169,6 +172,7 @@ export default function ManageUsers() {
               <th>Email</th>
               <th>Department</th>
               <th>Position</th>
+              <th>Role</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -181,6 +185,7 @@ export default function ManageUsers() {
                 <td>{user?.email}</td>
                 <td>{user?.department}</td>
                 <td>{user?.position}</td>
+                <td>{user?.role || 'employee'}</td>
 
                 <td>
                   <span
@@ -247,6 +252,18 @@ export default function ManageUsers() {
                 value={formData.position}
                 onChange={handleChange}
               />
+
+              <label>
+                Role
+                <select
+                  name="role"
+                  value={formData.role}
+                  onChange={handleChange}
+                >
+                  <option value="employee">Employee</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </label>
 
               {!editingUser && (
                 <input

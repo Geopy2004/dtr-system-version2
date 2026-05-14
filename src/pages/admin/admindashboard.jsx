@@ -18,6 +18,7 @@ import {
   FiCalendar,
   FiClock,
   FiDownload,
+  FiShield,
   FiUsers,
 } from "react-icons/fi";
 import { endOfMonth, format, startOfMonth } from "date-fns";
@@ -108,6 +109,7 @@ export default function AdminDashboard() {
     const late = todayRecords.filter((record) => record.status === "late").length;
     return [
       { label: "Employees", value: employees.length, icon: <FiUsers />, trend: `${employees.filter((employee) => employee.is_active !== false).length} active` },
+      { label: "Administrators", value: employees.filter((employee) => employee.role === "admin").length, icon: <FiShield />, trend: `${employees.filter((employee) => employee.role === "admin" && employee.is_active !== false).length} active` },
       { label: "Checked In", value: todayRecords.length, icon: <FiClock />, trend: `${present} present today` },
       { label: "Late Today", value: late, icon: <FiActivity />, trend: "Today" },
       { label: "Pending Leave", value: leaves.filter((leave) => leave.status === "pending").length, icon: <FiCalendar />, trend: `${departments.length} departments` },

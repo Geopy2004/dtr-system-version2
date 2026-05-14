@@ -8,6 +8,7 @@ export default function UserTable({ users = [], onEdit, onDelete, onToggle }) {
             <th>Email</th>
             <th>Department</th>
             <th>Position</th>
+            <th>Role</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -25,6 +26,7 @@ export default function UserTable({ users = [], onEdit, onDelete, onToggle }) {
                 <td>{user.email}</td>
                 <td>{user.department}</td>
                 <td>{user.position}</td>
+                <td>{user.role || 'employee'}</td>
                 <td>{user.is_active ? 'Active' : 'Inactive'}</td>
 
                 <td>

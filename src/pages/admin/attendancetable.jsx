@@ -7,6 +7,7 @@ export default function AttendanceTable({ attendance = [] }) {
         <thead>
           <tr>
             <th>User</th>
+            <th>Role</th>
             <th>Department</th>
             <th>Date</th>
             <th>Time In</th>
@@ -24,6 +25,7 @@ export default function AttendanceTable({ attendance = [] }) {
             attendance.map((item) => (
               <tr key={item.id}>
                 <td>{item.profiles?.name || '-'}</td>
+                <td>{item.profiles?.role || '-'}</td>
                 <td>{item.profiles?.department || '-'}</td>
 
                 <td>
