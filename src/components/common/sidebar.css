@@ -1,19 +1,24 @@
 .sidebar {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 40;
+  left: 0;
+  z-index: 55;
   display: flex;
   flex-direction: column;
-  width: 292px;
+  width: min(316px, calc(100vw - 28px));
   height: 100vh;
   border-right: 1px solid rgba(255, 255, 255, 0.11);
-  padding: 22px 16px;
+  padding: 24px 16px;
   background:
     linear-gradient(180deg, rgba(17, 20, 45, 0.92), rgba(8, 11, 28, 0.94)),
     rgba(8, 11, 28, 0.9);
   box-shadow: 14px 0 48px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(24px);
-  transition: width 220ms ease, padding 220ms ease, transform 220ms ease;
+  will-change: transform, opacity;
+}
+
+.sidebar:not(.open) {
+  pointer-events: none;
 }
 
 .mobile-menu-btn,
@@ -22,32 +27,70 @@
   display: none;
 }
 
-.sidebar-collapse {
-  position: absolute;
-  top: 20px;
-  right: -17px;
-  z-index: 5;
+.mobile-menu-btn {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  z-index: 60;
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 48px;
+  height: 48px;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
   color: #ffffff;
-  background: rgba(12, 16, 36, 0.9);
+  background: rgba(12, 16, 36, 0.78);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(16px);
+  transition: opacity 160ms ease, transform 180ms ease, background 160ms ease;
 }
 
-.sidebar-collapse svg {
-  font-size: 1.2rem;
+.mobile-menu-btn:hover {
+  background: rgba(18, 23, 51, 0.92);
+  transform: translateY(-1px);
+}
+
+.mobile-menu-btn.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+}
+
+.mobile-menu-btn svg {
+  font-size: 1.45rem;
+}
+
+.sidebar-close {
+  position: absolute;
+  top: 18px;
+  right: 16px;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: block;
+  border: 0;
+  background: rgba(3, 5, 14, 0.64);
+  backdrop-filter: blur(5px);
+  cursor: default;
 }
 
 .brand-block {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 6px 22px;
+  min-height: 52px;
+  padding: 4px 46px 22px 6px;
 }
 
 .brand-mark {
@@ -199,118 +242,15 @@
   font-weight: 900;
 }
 
-@media (min-width: 1121px) {
-  .sidebar.collapsed {
-    width: 84px;
-    padding: 22px 12px;
-  }
-
-  .sidebar.collapsed .brand-block {
-    justify-content: center;
-    padding: 8px 0 22px;
-  }
-
-  .sidebar.collapsed .brand-copy,
-  .sidebar.collapsed .operator-details,
-  .sidebar.collapsed .sidebar-link-label,
-  .sidebar.collapsed .system-row span,
-  .sidebar.collapsed .system-row i,
-  .sidebar.collapsed .logout-label {
-    display: none;
-  }
-
-  .sidebar.collapsed .operator-card {
-    justify-content: center;
-    padding: 10px;
-  }
-
-  .sidebar.collapsed .sidebar-nav {
-    width: 100%;
-    padding-right: 0;
-  }
-
-  .sidebar.collapsed .sidebar-link {
-    justify-content: center;
-    gap: 0;
-    padding: 0;
-  }
-
-  .sidebar.collapsed .sidebar-link:hover,
-  .sidebar.collapsed .sidebar-link.active {
-    transform: translateX(0);
-  }
-
-  .sidebar.collapsed .sidebar-system {
-    width: 100%;
-  }
-
-  .sidebar.collapsed .system-row,
-  .sidebar.collapsed .logout-btn {
-    justify-content: center;
-  }
-
-  .sidebar.collapsed .logout-btn {
-    padding: 0;
-  }
-}
-
 @media (max-width: 1120px) {
-  .sidebar-collapse {
-    display: none;
-  }
-
   .mobile-menu-btn {
-    position: fixed;
     top: 16px;
     left: 16px;
-    z-index: 60;
-    display: grid;
     width: 46px;
     height: 46px;
-    place-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 8px;
-    color: #ffffff;
-    background: rgba(12, 16, 36, 0.78);
-    backdrop-filter: blur(16px);
-  }
-
-  .mobile-menu-btn svg {
-    font-size: 1.4rem;
   }
 
   .sidebar {
-    position: fixed;
-    left: 0;
-    transform: translateX(-102%);
-    transition: transform 220ms ease;
-  }
-
-  .sidebar.open {
-    transform: translateX(0);
-  }
-
-  .sidebar-close {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    display: grid;
-    width: 36px;
-    height: 36px;
-    place-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  .sidebar-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 35;
-    display: block;
-    border: 0;
-    background: rgba(3, 5, 14, 0.64);
-    backdrop-filter: blur(4px);
+    padding: 22px 14px;
   }
 }

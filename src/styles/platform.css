@@ -31,19 +31,14 @@
 
 .layout {
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-height: 100vh;
-  transition: grid-template-columns 220ms ease;
-}
-
-.layout.sidebar-collapsed {
-  grid-template-columns: 84px minmax(0, 1fr);
 }
 
 .main-panel {
   width: 100%;
   min-width: 0;
-  padding: 26px;
+  padding: 82px 26px 26px;
 }
 
 .page {
@@ -905,8 +900,7 @@
 }
 
 @media (max-width: 1120px) {
-  .layout,
-  .layout.sidebar-collapsed {
+  .layout {
     grid-template-columns: 1fr;
   }
 

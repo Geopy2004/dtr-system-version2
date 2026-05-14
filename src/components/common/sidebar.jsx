@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
 import {
   MdAccessTime,
   MdAdminPanelSettings,
   MdAnalytics,
   MdCalendarMonth,
-  MdChevronLeft,
-  MdChevronRight,
   MdClose,
   MdDashboard,
   MdHistory,
@@ -41,11 +39,28 @@ const adminMenus = [
   { path: "/admin/settings", icon: <MdSettings />, label: "Settings" },
 ];
 
-export default function Sidebar({ collapsed = false, onCollapsedChange }) {
+const sidebarVariants = {
+  closed: {
+    x: "-104%",
+    opacity: 0.96,
+  },
+  open: {
+    x: 0,
+    opacity: 1,
+  },
+};
+
+const sidebarTransition = {
+  type: "spring",
+  stiffness: 360,
+  damping: 34,
+  mass: 0.85,
+};
+
+export default function Sidebar({ open = false, onClose, onOpen }) {
   const { isAdmin, logout, user, profile } = useAuth();
   const navigate = useNavigate();
   const logoutInProgressRef = useRef(false);
-  const [open, setOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
@@ -54,6 +69,15 @@ export default function Sidebar({ collapsed = false, onCollapsedChange }) {
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose?.();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const handleLogout = useCallback(async () => {
     if (logoutInProgressRef.current || isLoggingOut) return;
@@ -72,42 +96,47 @@ export default function Sidebar({ collapsed = false, onCollapsedChange }) {
   const menus = isAdmin ? adminMenus : userMenus;
   const displayName =
     profile?.full_name || profile?.name || user?.email?.split("@")[0] || "Operator";
-  const toggleCollapsed = () => onCollapsedChange?.(!collapsed);
 
   return (
     <>
       <button
-        className="mobile-menu-btn"
+        className={`mobile-menu-btn ${open ? "hidden" : ""}`}
         type="button"
         aria-label="Open navigation"
-        onClick={() => setOpen(true)}
+        aria-expanded={open}
+        onClick={onOpen}
       >
         <MdMenu />
       </button>
 
-      {open && <button className="sidebar-overlay" aria-label="Close navigation" onClick={() => setOpen(false)} />}
+      <AnimatePresence>
+        {open && (
+          <motion.button
+            className="sidebar-overlay"
+            type="button"
+            aria-label="Close navigation"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+          />
+        )}
+      </AnimatePresence>
 
       <motion.aside
-        className={`sidebar ${open ? "open" : ""} ${collapsed ? "collapsed" : ""}`}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.35, ease: "easeOut" }}
+        className={`sidebar ${open ? "open" : ""}`}
+        aria-hidden={!open}
+        initial={false}
+        animate={open ? "open" : "closed"}
+        variants={sidebarVariants}
+        transition={sidebarTransition}
       >
-        <button
-          className="sidebar-collapse"
-          type="button"
-          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-          aria-expanded={!collapsed}
-          onClick={toggleCollapsed}
-        >
-          {collapsed ? <MdChevronRight /> : <MdChevronLeft />}
-        </button>
-
         <button
           className="sidebar-close"
           type="button"
           aria-label="Close navigation"
-          onClick={() => setOpen(false)}
+          onClick={onClose}
         >
           <MdClose />
         </button>
@@ -138,8 +167,7 @@ export default function Sidebar({ collapsed = false, onCollapsedChange }) {
               to={menu.path}
               end={menu.path.endsWith("dashboard")}
               className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
-              onClick={() => setOpen(false)}
-              title={collapsed ? menu.label : undefined}
+              onClick={onClose}
             >
               <span className="sidebar-link-icon">{menu.icon}</span>
               <span className="sidebar-link-label">{menu.label}</span>

@@ -158,7 +158,7 @@ const Register = () => {
                 autoComplete="email"
                 value={form.email}
                 onChange={set("email")}
-                placeholder="you@company.com"
+                placeholder="you@gmail.com"
                 disabled={loading}
               />
             </div>
