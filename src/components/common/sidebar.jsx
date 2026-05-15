@@ -19,6 +19,7 @@ import {
   MdWorkHistory,
 } from "react-icons/md";
 import "./sidebar.css";
+import logo from "../../assets/logo/logo.png";
 
 const userMenus = [
   { path: "/user/dashboard", icon: <MdDashboard />, label: "Dashboard" },
@@ -145,10 +146,10 @@ export default function Sidebar({ open = false, onClose, onOpen }) {
           <div className="brand-mark">
             <MdAdminPanelSettings />
           </div>
-          <div className="brand-copy">
-            <h1>DTR Nexus</h1>
-            <p>{isAdmin ? "Enterprise Command" : "Employee Workspace"}</p>
-          </div>
+            <div className="brand-copy">
+              <img src={logo} alt="One Punch-In" className="brand-logo" />
+              <p>{isAdmin ? "Enterprise Command" : "Employee Workspace"}</p>
+            </div>
         </div>
 
         <div className="operator-card" title={displayName}>

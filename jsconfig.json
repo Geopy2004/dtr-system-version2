@@ -4,6 +4,7 @@
     "paths": {
       "@/*": ["*"]
     },
+    "ignoreDeprecations": "6.0",
     "jsx": "react-jsx",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": false,

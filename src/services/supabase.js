@@ -1,25 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey =
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    persistSession: true,
-    storageKey: "dtr-nexus-auth",
-  },
-  db: {
-    schema: "public",
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 12,
-    },
-  },
-});
-
-export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseKey);

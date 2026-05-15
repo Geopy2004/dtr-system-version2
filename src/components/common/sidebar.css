@@ -93,6 +93,19 @@
   padding: 4px 46px 22px 6px;
 }
 
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.brand-logo {
+  height: 36px;
+  width: auto;
+  display: block;
+}
+
 .brand-mark {
   display: grid;
   width: 48px;

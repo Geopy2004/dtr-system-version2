@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthContext } from "./AuthContext";
-import { authAPI, profileAPI } from "../services/api";
+import { authAPI, profileAPI, isAdminEmail } from "../services/api";
 import { supabase } from "../services/supabase";
 
 export const AuthProvider = ({ children }) => {
@@ -93,8 +93,11 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const isAdmin = useMemo(
-    () => profile?.role === "admin" || user?.app_metadata?.role === "admin",
-    [profile?.role, user?.app_metadata?.role]
+    () =>
+      profile?.role === "admin" ||
+      user?.app_metadata?.role === "admin" ||
+      isAdminEmail(user?.email),
+    [profile?.role, user?.app_metadata?.role, user?.email]
   );
 
   const value = useMemo(

@@ -1,25 +1,27 @@
 import { useMemo, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+// eslint-disable-next-line no-unused-vars
 import { FiEye, FiEyeOff, FiLock, FiMail, FiShield } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
+import logo from "../../assets/logo/logo.png";
 import { isAdminEmail } from "../../services/api";
 import "./auth.css";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { user, isAdmin, login } = useAuth();
+  const { user, isAdmin, login, loading } = useAuth();
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const nextPath = useMemo(
     () => (isAdmin ? "/admin/dashboard" : "/user/dashboard"),
     [isAdmin]
   );
 
-  if (user) return <Navigate to={nextPath} replace />;
+  if (user && !loading) return <Navigate to={nextPath} replace />;
 
   const handleChange = (key) => (event) => {
     setForm((prev) => ({ ...prev, [key]: event.target.value }));
@@ -34,7 +36,7 @@ const Login = () => {
       return;
     }
 
-    setLoading(true);
+    setSubmitting(true);
     try {
       const result = await login(email, form.password);
       const isAdminUser =
@@ -48,7 +50,7 @@ const Login = () => {
     } catch (error) {
       toast.error(error?.message || "Unable to sign in.");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -61,11 +63,9 @@ const Login = () => {
         transition={{ duration: 0.45, ease: "easeOut" }}
       >
         <div className="auth-brand">
-          <span className="auth-mark">
-            <FiShield />
-          </span>
+          <img src={logo} alt="One Punch-In" className="auth-logo" />
           <div>
-            <strong>DTR Nexus</strong>
+            <strong>One Punch-In</strong>
             <span>Attendance command platform</span>
           </div>
         </div>
@@ -86,7 +86,7 @@ const Login = () => {
                 value={form.email}
                 onChange={handleChange("email")}
                 placeholder="you@company.com"
-                disabled={loading}
+                disabled={loading || submitting}
               />
             </div>
           </label>
@@ -101,7 +101,7 @@ const Login = () => {
                 value={form.password}
                 onChange={handleChange("password")}
                 placeholder="Enter password"
-                disabled={loading}
+                disabled={loading || submitting}
               />
               <button
                 className="auth-icon-btn"
@@ -118,13 +118,13 @@ const Login = () => {
             <Link to="/forgot-password">Forgot password?</Link>
           </div>
 
-          <button className="auth-submit" type="submit" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
+          <button className="auth-submit" type="submit" disabled={loading || submitting}>
+            {submitting ? "Signing in..." : "Sign in"}
           </button>
         </form>
 
         <p className="auth-switch">
-          New to DTR Nexus? <Link to="/register">Create an account</Link>
+          New to One Punch-In? <Link to="/register">Create an account</Link>
         </p>
       </motion.section>
     </main>

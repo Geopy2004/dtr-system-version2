@@ -219,7 +219,7 @@ export const seedLogs = [
   {
     id: "log-4",
     action: "login",
-    description: "Signed in to DTR Nexus",
+    description: "Signed in to One Punch-In",
     status: "success",
     timestamp: at(addDays(-2), 8, 2),
     device: "iOS",

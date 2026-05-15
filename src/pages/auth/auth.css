@@ -5,22 +5,17 @@
   place-items: center;
   overflow: hidden;
   padding: 24px;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    radial-gradient(circle at 18% 14%, rgba(124, 58, 237, 0.34), transparent 28rem),
-    radial-gradient(circle at 86% 18%, rgba(236, 72, 153, 0.24), transparent 25rem),
-    radial-gradient(circle at 70% 86%, rgba(6, 182, 212, 0.18), transparent 24rem),
-    #070813;
   background-size: 42px 42px, 42px 42px, auto, auto, auto, auto;
   color: #edf2ff;
+  border: none;
+  outline: none;
 }
 
 .auth-card {
   position: relative;
   z-index: 1;
   width: min(420px, 100%);
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  border: none;
   border-radius: 8px;
   padding: 24px;
   background:
@@ -30,22 +25,15 @@
     0 24px 80px rgba(0, 0, 0, 0.44),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(24px);
+  outline: none;
+}
+
+.auth-card::before {
+  display: none;
 }
 
 .auth-card.wide {
   width: min(540px, 100%);
-}
-
-.auth-card::before {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  content: "";
-  border-radius: inherit;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.34), transparent 36%, rgba(6, 182, 212, 0.18));
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  padding: 1px;
 }
 
 .auth-brand {
@@ -53,6 +41,13 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 26px;
+}
+
+.auth-logo {
+  height: 48px;
+  width: auto;
+  display: block;
+  object-fit: contain;
 }
 
 .auth-mark {
@@ -129,29 +124,196 @@
   color: #b7c2df;
   font-size: 0.76rem;
   font-weight: 800;
+  transition: all 0.3s ease;
 }
 
+/* ============================================ */
+/* INPUT FIELD - WITH ANIMATIONS */
+/* ============================================ */
+
+/* Keyframe Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes borderPulse {
+  0% {
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 0 0 rgba(52, 209, 238, 0);
+  }
+  50% {
+    border-color: rgba(52, 209, 238, 0.6);
+    box-shadow: 0 0 0 3px rgba(52, 209, 238, 0.1);
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 0 0 rgba(52, 209, 238, 0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+  20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+@keyframes successPop {
+  0% {
+    transform: scale(1);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    transform: scale(1.02);
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  }
+  100% {
+    transform: scale(1);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+}
+
+@keyframes focusGlow {
+  0% {
+    border-color: #34d1ee;
+    box-shadow: 0 0 0 0 rgba(52, 209, 238, 0.3);
+  }
+  50% {
+    border-color: #34d1ee;
+    box-shadow: 0 0 0 4px rgba(52, 209, 238, 0.2);
+  }
+  100% {
+    border-color: #34d1ee;
+    box-shadow: 0 0 0 0 rgba(52, 209, 238, 0.3);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+@keyframes placeholderFloat {
+  0% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-2px);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+}
+
+@keyframes typingPulse {
+  0% {
+    letter-spacing: normal;
+    text-shadow: 0 0 0px rgba(52, 209, 238, 0);
+  }
+  50% {
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 1px rgba(52, 209, 238, 0.5);
+  }
+  100% {
+    letter-spacing: normal;
+    text-shadow: 0 0 0px rgba(52, 209, 238, 0);
+  }
+}
+
+@keyframes borderGradientShift {
+  0% {
+    border-image-source: linear-gradient(90deg, #7c3aed, #ec4899, #06b6d4);
+    border-image-slice: 1;
+  }
+  50% {
+    border-image-source: linear-gradient(270deg, #7c3aed, #ec4899, #06b6d4);
+    border-image-slice: 1;
+  }
+  100% {
+    border-image-source: linear-gradient(90deg, #7c3aed, #ec4899, #06b6d4);
+    border-image-slice: 1;
+  }
+}
+
+/* Main Input Container */
 .auth-input {
   position: relative;
   display: flex;
   align-items: center;
   min-height: 48px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
-  background: rgba(6, 9, 23, 0.62);
-  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  background: transparent !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: none !important;
+  animation: slideIn 0.4s ease-out;
 }
 
+/* Focus Animation */
 .auth-input:focus-within {
-  border-color: rgba(34, 211, 238, 0.72);
-  background: rgba(6, 9, 23, 0.8);
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+  border-color: #34d1ee;
+  background: transparent !important;
+  box-shadow: none !important;
+  animation: focusGlow 0.8s ease-out;
+  transform: translateY(-1px);
+}
+
+/* Error State Animation (add .error class to trigger) */
+.auth-input.error {
+  animation: shake 0.5s ease-in-out;
+  border-color: #ef4444;
+}
+
+.auth-input.error:focus-within {
+  border-color: #ef4444;
+}
+
+/* Success State Animation */
+.auth-input.success {
+  animation: successPop 0.4s ease-out;
+}
+
+/* Ripple Effect on Click */
+.auth-input:active::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  background: rgba(52, 209, 238, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  animation: ripple 0.6s ease-out;
+  pointer-events: none;
 }
 
 .auth-input > svg {
   flex: 0 0 auto;
-  margin-left: 14px;
+  margin-left: 12px;
   color: #8fa2cb;
+  transition: all 0.3s ease;
+}
+
+.auth-input:focus-within > svg {
+  color: #34d1ee;
+  transform: scale(1.1) rotate(5deg);
 }
 
 .auth-input input,
@@ -161,20 +323,70 @@
   border: 0;
   padding: 0 12px;
   color: #edf2ff;
-  background: transparent;
+  background: transparent !important;
   outline: none;
+  font-size: 0.95rem;
+  box-shadow: none !important;
+  transition: all 0.3s ease;
 }
 
-.auth-input select {
-  height: 48px;
+.auth-input input:focus,
+.auth-input select:focus {
+  outline: none;
+  box-shadow: none !important;
+  background: transparent !important;
+  animation: typingPulse 1s ease infinite;
 }
 
 .auth-input input::placeholder {
   color: #607096;
+  background: transparent;
+  transition: all 0.3s ease;
+}
+
+.auth-input input:focus::placeholder {
+  animation: placeholderFloat 1s ease infinite;
+  opacity: 0.5;
+}
+
+.auth-input select {
+  height: 48px;
+  background: transparent !important;
 }
 
 .auth-input option {
   color: #111827;
+  background: #1a1f2e;
+}
+
+/* Gradient Border Animation on Hover */
+.auth-input:hover {
+  border-color: rgba(52, 209, 238, 0.4);
+  transform: translateY(-1px);
+  transition: all 0.3s ease;
+}
+
+/* Remove any inner box or rectangle */
+.auth-input input:-webkit-autofill,
+.auth-input input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px transparent !important;
+  -webkit-text-fill-color: #edf2ff !important;
+  transition: background-color 5000s ease-in-out 0s;
+  background: transparent !important;
+}
+
+/* Stagger Animation for Multiple Fields */
+.auth-field:nth-child(1) .auth-input {
+  animation-delay: 0s;
+}
+.auth-field:nth-child(2) .auth-input {
+  animation-delay: 0.1s;
+}
+.auth-field:nth-child(3) .auth-input {
+  animation-delay: 0.2s;
+}
+.auth-field:nth-child(4) .auth-input {
+  animation-delay: 0.3s;
 }
 
 .auth-icon-btn {
@@ -182,19 +394,21 @@
   flex: 0 0 auto;
   width: 38px;
   height: 38px;
-  margin: 0 5px 0 0;
+  margin: 0;
   place-items: center;
   border: 0;
   border-radius: 8px;
   color: #b7c2df;
   background: transparent;
   box-shadow: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .auth-icon-btn:hover {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.07);
-  transform: none;
+  transform: scale(1.05) rotate(90deg);
 }
 
 .auth-row {
@@ -206,6 +420,15 @@
 .auth-switch a {
   color: #9ed7ff;
   font-weight: 800;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.auth-row a:hover,
+.auth-switch a:hover {
+  color: #34d1ee;
+  transform: translateX(2px);
+  display: inline-block;
 }
 
 .auth-submit {
@@ -219,12 +442,33 @@
   background: linear-gradient(135deg, #7c3aed, #ec4899 52%, #06b6d4);
   box-shadow: 0 0 36px rgba(124, 58, 237, 0.34);
   font-weight: 900;
-  transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
 }
 
 .auth-submit:hover:not(:disabled) {
   filter: brightness(1.06);
   transform: translateY(-2px);
+}
+
+.auth-submit::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.auth-submit:active::before {
+  width: 300px;
+  height: 300px;
 }
 
 .auth-switch {
@@ -238,6 +482,7 @@
   font-size: 0.78rem;
   font-style: normal;
   font-weight: 800;
+  transition: all 0.2s ease;
 }
 
 .strength.good,
@@ -251,6 +496,21 @@
 
 .strength.weak {
   color: #ffb4c0;
+}
+
+/* REMOVE ALL OUTER LINES FROM FOCUS STATES */
+*:focus,
+*:focus-visible,
+*:active {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 @media (max-width: 560px) {

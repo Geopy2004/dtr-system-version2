@@ -303,7 +303,7 @@ export const authAPI = {
 
     await addActivityLog({
       action: "login",
-      description: "Signed in to DTR Nexus",
+      description: "Signed in to One Punch-In",
       targetUserId: data.user?.id,
     });
 
@@ -359,7 +359,7 @@ export const authAPI = {
   async logout() {
     await addActivityLog({
       action: "logout",
-      description: "Signed out of DTR Nexus",
+      description: "Signed out of One Punch-In",
     });
 
     const { error } = await supabase.auth.signOut({ scope: "local" });

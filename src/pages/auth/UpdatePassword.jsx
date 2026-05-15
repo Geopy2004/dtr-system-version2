@@ -63,7 +63,7 @@ export default function UpdatePassword() {
             <FiShield />
           </span>
           <div>
-            <strong>DTR Nexus</strong>
+              <strong>One Punch-In</strong>
             <span>{isRecoverySession ? "Recovery session active" : "Password update"}</span>
           </div>
         </div>

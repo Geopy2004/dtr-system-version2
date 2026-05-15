@@ -110,7 +110,7 @@ const Register = () => {
             <FiShield />
           </span>
           <div>
-            <strong>DTR Nexus</strong>
+              <strong>One Punch-In</strong>
             <span>Email verification enabled</span>
           </div>
         </div>

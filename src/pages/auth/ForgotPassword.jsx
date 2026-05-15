@@ -41,7 +41,7 @@ export default function ForgotPassword() {
             <FiShield />
           </span>
           <div>
-            <strong>DTR Nexus</strong>
+              <strong>One Punch-In</strong>
             <span>Account recovery</span>
           </div>
         </div>
