@@ -5,17 +5,13 @@ import { useAuth } from "../../context/AuthContext";
 import {
   MdAccessTime,
   MdAdminPanelSettings,
-  MdAnalytics,
-  MdCalendarMonth,
   MdClose,
   MdDashboard,
   MdHistory,
   MdLogout,
   MdMenu,
   MdNotificationsActive,
-  MdOutlineBadge,
   MdPeople,
-  MdSettings,
   MdWorkHistory,
 } from "react-icons/md";
 import "./sidebar.css";
@@ -23,21 +19,14 @@ import logo from "../../assets/logo/logo.png";
 
 const userMenus = [
   { path: "/user/dashboard", icon: <MdDashboard />, label: "Dashboard" },
-  { path: "/user/myattendance", icon: <MdAccessTime />, label: "My Attendance" },
+  { path: "/user/attendance", icon: <MdAccessTime />, label: "My Attendance" },
   { path: "/user/logs", icon: <MdHistory />, label: "My Logs" },
   { path: "/user/leave", icon: <MdWorkHistory />, label: "Leave" },
 ];
 
 const adminMenus = [
   { path: "/admin/dashboard", icon: <MdDashboard />, label: "Command Center" },
-  { path: "/admin/users", icon: <MdPeople />, label: "Employees" },
-  { path: "/admin/attendance", icon: <MdAccessTime />, label: "Attendance" },
-  { path: "/admin/departments", icon: <MdOutlineBadge />, label: "Departments" },
-  { path: "/admin/schedules", icon: <MdCalendarMonth />, label: "Schedules" },
-  { path: "/admin/leave", icon: <MdWorkHistory />, label: "Leave" },
-  { path: "/admin/reports", icon: <MdAnalytics />, label: "Reports" },
-  { path: "/admin/logs", icon: <MdHistory />, label: "Audit Trail" },
-  { path: "/admin/settings", icon: <MdSettings />, label: "Settings" },
+  { path: "/admin/manage-users", icon: <MdPeople />, label: "Employees" },
 ];
 
 const sidebarVariants = {

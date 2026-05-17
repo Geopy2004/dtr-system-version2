@@ -1,7 +1,7 @@
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import "./Navbar.css";
+import "./navbar.css";
 
 const Navbar = ({ onToggleSidebar }) => {
   const { profile, logout } = useAuth();

@@ -14,7 +14,7 @@ import {
 import "./timeinout.css";
 import Loader from "../../components/common/loader";
 
-export default function TimeInOut({ onAttendanceUpdate }) {
+export default function TimeInOut({ onAttendanceUpdate } = {}) {
   const [loading, setLoading] = useState(false);
   const [todayAttendance, setTodayAttendance] = useState(null);
   const [notes, setNotes] = useState("");

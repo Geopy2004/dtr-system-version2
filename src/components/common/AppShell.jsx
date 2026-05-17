@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import Sidebar from "./Sidebar";
+import Sidebar from "./sidebar";
 
 export default function AppShell({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);

@@ -154,8 +154,8 @@ export default function AdminDashboard() {
 
   return (
     <AppShell>
-      <div className="page page-stack">
-        <header className="page-header">
+      <div className="page page-stack admin-dashboard">
+        <header className="page-header dashboard-hero admin-hero">
           <div>
             <span className="eyebrow">Admin Command Center</span>
             <h1 className="page-title">Attendance Control</h1>
@@ -177,7 +177,7 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        <section className="metric-grid">
+        <section className="metric-grid admin-metrics">
           {metrics.map((metric) => (
             <article className="metric-card" key={metric.label}>
               <div className="metric-icon">{metric.icon}</div>
@@ -188,7 +188,7 @@ export default function AdminDashboard() {
           ))}
         </section>
 
-        <section className="dashboard-grid">
+        <section className="dashboard-grid admin-analytics-grid">
           <div className="chart-card">
             <div className="card-title-row">
               <div>
@@ -234,7 +234,7 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        <section className="table-card">
+        <section className="table-card dashboard-table">
           <div className="card-title-row">
             <div>
               <span className="eyebrow">Live Monitor</span>

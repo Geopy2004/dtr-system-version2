@@ -890,6 +890,204 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.dashboard-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 24px;
+  background:
+    linear-gradient(135deg, rgba(20, 184, 166, 0.16), transparent 42%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045)),
+    rgba(9, 13, 31, 0.78);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(22px);
+}
+
+.dashboard-hero::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  content: "";
+  background: linear-gradient(90deg, #14b8a6, #22c55e, #f59e0b);
+}
+
+.dashboard-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-hero .page-title {
+  max-width: 980px;
+  margin-top: 8px;
+  font-size: clamp(2.15rem, 4vw, 3.65rem);
+}
+
+.dashboard-hero .page-subtitle {
+  margin: 0;
+  color: #c3cce6;
+}
+
+.admin-dashboard,
+.user-dashboard {
+  padding-bottom: 20px;
+}
+
+.admin-dashboard .page-header {
+  margin-bottom: 0;
+}
+
+.admin-metrics {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.admin-metrics .metric-card {
+  min-height: 128px;
+}
+
+.admin-metrics .metric-value {
+  margin-top: 14px;
+  font-size: clamp(1.65rem, 2vw, 2.15rem);
+}
+
+.admin-analytics-grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
+}
+
+.user-dashboard-grid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+  align-items: start;
+}
+
+.user-hero {
+  min-height: 190px;
+}
+
+.user-hero .page-title {
+  font-size: clamp(2rem, 4vw, 3.35rem);
+}
+
+.status-orbit {
+  min-height: 122px;
+  align-content: center;
+  border-color: rgba(34, 197, 94, 0.2);
+  background:
+    linear-gradient(135deg, rgba(34, 197, 94, 0.13), rgba(20, 184, 166, 0.08)),
+    rgba(255, 255, 255, 0.055);
+}
+
+.metric-card {
+  isolation: isolate;
+}
+
+.metric-card::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.065), transparent 62%);
+}
+
+.metric-card:nth-child(2) .metric-icon {
+  background: linear-gradient(135deg, #22c55e, #14b8a6);
+  box-shadow: 0 0 28px rgba(34, 197, 94, 0.26);
+}
+
+.metric-card:nth-child(3) .metric-icon {
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  box-shadow: 0 0 28px rgba(245, 158, 11, 0.22);
+}
+
+.metric-card:nth-child(4) .metric-icon {
+  background: linear-gradient(135deg, #06b6d4, #2563eb);
+  box-shadow: 0 0 28px rgba(6, 182, 212, 0.24);
+}
+
+.metric-card:nth-child(5) .metric-icon {
+  background: linear-gradient(135deg, #ec4899, #f97316);
+  box-shadow: 0 0 28px rgba(236, 72, 153, 0.22);
+}
+
+.metric-label {
+  font-weight: 750;
+}
+
+.chart-card,
+.table-card,
+.glass-card,
+.toolbar-card {
+  transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.chart-card:hover,
+.table-card:hover,
+.glass-card:hover,
+.metric-card:hover {
+  border-color: rgba(148, 163, 184, 0.26);
+  box-shadow: 0 24px 78px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.chart-card,
+.table-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.04)),
+    rgba(9, 13, 31, 0.8);
+}
+
+.card-title-row {
+  min-height: 36px;
+}
+
+.card-title-row svg {
+  flex: 0 0 auto;
+  color: #9ed7ff;
+}
+
+.card-title-row h2,
+.card-title-row h3 {
+  line-height: 1.25;
+}
+
+.chart-height {
+  min-height: 300px;
+}
+
+.compact-chart {
+  min-height: 230px;
+}
+
+.dashboard-table .data-table tbody tr,
+.table-card .data-table tbody tr {
+  transition: background 160ms ease;
+}
+
+.dashboard-table .data-table tbody tr:hover,
+.table-card .data-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.quick-action-grid {
+  align-items: stretch;
+}
+
+.quick-action {
+  min-width: 0;
+  text-align: center;
+}
+
+.timeline-item {
+  min-width: 0;
+}
+
+.timeline-item > div {
+  min-width: 0;
+}
+
+.timeline-item strong,
+.timeline-item p {
+  overflow-wrap: anywhere;
+}
+
 @keyframes shimmer {
   from {
     transform: translateX(-100%);
@@ -916,6 +1114,10 @@
     grid-template-columns: 1fr;
   }
 
+  .admin-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .attendance-workflow-grid,
   .logs-grid,
   .split-grid {
@@ -927,6 +1129,20 @@
   .page-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .dashboard-hero {
+    padding: 18px;
+  }
+
+  .hero-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .status-orbit {
+    width: 100%;
+    min-width: 0;
   }
 
   .metric-grid {

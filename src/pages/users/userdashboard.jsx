@@ -151,8 +151,8 @@ export default function UserDashboard() {
 
   return (
     <AppShell>
-      <div className="page page-stack">
-        <section className="hero-panel glass-card">
+      <div className="page page-stack user-dashboard">
+        <section className="hero-panel glass-card dashboard-hero user-hero">
           <div>
             <span className="eyebrow">Employee Command</span>
             <h1 className="page-title">Welcome, {displayName}</h1>
@@ -191,7 +191,7 @@ export default function UserDashboard() {
           ))}
         </section>
 
-        <section className="dashboard-grid">
+        <section className="dashboard-grid user-dashboard-grid">
           <div className="page-stack">
             <TimeInOut onAttendanceUpdate={loadDashboard} />
 
