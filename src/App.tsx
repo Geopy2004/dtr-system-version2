@@ -15,6 +15,15 @@ import UpdatePassword from "./pages/auth/UpdatePassword";
 // Admin Pages
 import AdminDashboard from "./pages/admin/admindashboard";
 import ManageUsers from "./pages/admin/manageusers";
+import {
+  AdminAttendance,
+  AdminLeaveManagement,
+  AuditTrail,
+  DepartmentManagement,
+  ReportsAnalytics,
+  ScheduleManagement,
+  SystemSettings,
+} from "./pages/admin/AdminModules";
 
 // User Pages
 import UserDashboard from "./pages/users/userdashboard";
@@ -53,6 +62,13 @@ export default function App() {
       >
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/manage-users" element={<ManageUsers />} />
+        <Route path="/admin/attendance" element={<AdminAttendance />} />
+        <Route path="/admin/leaves" element={<AdminLeaveManagement />} />
+        <Route path="/admin/departments" element={<DepartmentManagement />} />
+        <Route path="/admin/schedules" element={<ScheduleManagement />} />
+        <Route path="/admin/reports" element={<ReportsAnalytics />} />
+        <Route path="/admin/audit" element={<AuditTrail />} />
+        <Route path="/admin/settings" element={<SystemSettings />} />
       </Route>
 
       {/* User Routes */}

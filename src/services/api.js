@@ -1093,6 +1093,10 @@ export const notificationAPI = {
 };
 
 export const adminAPI = {
+  async getAllUsers() {
+    return profileAPI.getAllUsers();
+  },
+
   async getDashboardStats(startDate, endDate) {
     const [users, attendance, leaves, departments] = await Promise.all([
       profileAPI.getAllUsers(),
@@ -1136,6 +1140,10 @@ export const adminAPI = {
 
   async updateUser(userId, updates) {
     return profileAPI.updateProfile(userId, updates);
+  },
+
+  async deleteUser(userId) {
+    return profileAPI.updateProfile(userId, { is_active: false });
   },
 
   async archiveUser(userId, isActive) {

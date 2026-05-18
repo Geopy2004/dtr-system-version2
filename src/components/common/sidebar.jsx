@@ -12,6 +12,7 @@ import {
   MdMenu,
   MdNotificationsActive,
   MdPeople,
+  MdSettings,
   MdWorkHistory,
 } from "react-icons/md";
 import "./sidebar.css";
@@ -26,7 +27,11 @@ const userMenus = [
 
 const adminMenus = [
   { path: "/admin/dashboard", icon: <MdDashboard />, label: "Command Center" },
-  { path: "/admin/manage-users", icon: <MdPeople />, label: "Employees" },
+  { path: "/admin/manage-users", icon: <MdPeople />, label: "Manage Users" },
+  { path: "/admin/attendance", icon: <MdAccessTime />, label: "Attendance Records" },
+  { path: "/admin/leaves", icon: <MdWorkHistory />, label: "Leave Approvals" },
+  { path: "/admin/reports", icon: <MdHistory />, label: "Reports" },
+  { path: "/admin/settings", icon: <MdSettings />, label: "Settings" },
 ];
 
 const sidebarVariants = {
