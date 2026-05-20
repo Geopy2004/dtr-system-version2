@@ -65,6 +65,10 @@ export const buildDashboardStats = (records, month = new Date()) => {
     (sum, record) => sum + (Number(record.late_minutes) || 0),
     0
   );
+  const totalEarlyMinutes = records.reduce(
+    (sum, record) => sum + (Number(record.early_minutes) || 0),
+    0
+  );
   const totalWorkedHours = records.reduce(
     (sum, record) => sum + getRecordHours(record),
     0
@@ -76,6 +80,7 @@ export const buildDashboardStats = (records, month = new Date()) => {
     late,
     absent,
     totalLateMinutes,
+    totalEarlyMinutes,
     totalWorkedHours: Number(totalWorkedHours.toFixed(1)),
     attendancePercentage: workingDays ? Math.round((present / workingDays) * 100) : 0,
   };

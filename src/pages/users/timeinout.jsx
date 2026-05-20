@@ -33,13 +33,7 @@ export default function TimeInOut({ onAttendanceUpdate } = {}) {
 
   const fetchTodayAttendance = useCallback(async () => {
     try {
-      const today = format(new Date(), "yyyy-MM-dd");
-      const result = await attendanceAPI.getMyAttendance({
-        startDate: today,
-        endDate: today,
-      });
-
-      return result?.attendance?.[0] || result?.data?.[0] || null;
+      return await attendanceAPI.getTodayRecord();
     } catch (error) {
       console.error("Fetch error:", error);
       toast.error("Failed to load attendance");
@@ -120,6 +114,21 @@ export default function TimeInOut({ onAttendanceUpdate } = {}) {
     if (getSessionTime("afternoon_time_out", "time_out")) return "completed";
     if (todayAttendance.status === "late") return "late";
     return "present";
+  };
+
+  const getAttendanceStatusText = () => {
+    if (!todayAttendance?.status) return "Pending";
+    if (todayAttendance.status === "late") {
+      return `Late by ${todayAttendance.late_minutes || 0} min`;
+    }
+    if (todayAttendance.status === "present" && todayAttendance.early_minutes > 0) {
+      return `Early by ${todayAttendance.early_minutes || 0} min`;
+    }
+    if (todayAttendance.status === "present") return "Present";
+    if (todayAttendance.status === "overtime") return "Overtime";
+    if (todayAttendance.status === "undertime") return "Undertime";
+    if (todayAttendance.status === "absent") return "Absent";
+    return todayAttendance.status.replaceAll("-", " ");
   };
 
   const morningIn = getSessionTime("morning_time_in", "time_in");
@@ -263,11 +272,7 @@ export default function TimeInOut({ onAttendanceUpdate } = {}) {
               <div className="attendance-item">
                 <div className="item-label">Status</div>
                 <div className={`item-value status-${todayAttendance.status}`}>
-                  {todayAttendance.status === "late" &&
-                    `Late by ${todayAttendance.late_minutes || 0} min`}
-                  {todayAttendance.status === "present" && "Present"}
-                  {todayAttendance.status === "absent" && "Absent"}
-                  {!todayAttendance.status && "Pending"}
+                  {getAttendanceStatusText()}
                 </div>
               </div>
             </div>

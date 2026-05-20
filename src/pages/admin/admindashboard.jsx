@@ -29,12 +29,6 @@ import {
   realtimeAPI,
 } from "../../services/api";
 import {
-  seedAttendance,
-  seedDepartments,
-  seedEmployees,
-  seedLeaves,
-} from "../../data/platformSeed";
-import {
   formatDate,
   formatTime,
   getRecordEnd,
@@ -76,11 +70,11 @@ export default function AdminDashboard() {
       setDepartments(data.departments || []);
       setLeaves(data.leaves || []);
     } catch (error) {
-      console.warn("Admin preview data loaded:", error?.message);
-      setRecords(seedAttendance);
-      setEmployees(seedEmployees);
-      setDepartments(seedDepartments);
-      setLeaves(seedLeaves);
+      console.error("Unable to load admin dashboard data from Supabase:", error);
+      setRecords([]);
+      setEmployees([]);
+      setDepartments([]);
+      setLeaves([]);
     } finally {
       setLoading(false);
     }
@@ -148,6 +142,7 @@ export default function AdminDashboard() {
       { label: "Time Out", value: (row) => formatTime(getRecordEnd(row)) },
       { label: "Hours", value: "hours_worked" },
       { label: "Late Minutes", value: "late_minutes" },
+      { label: "Early Minutes", value: "early_minutes" },
       { label: "Status", value: "status" },
     ]);
   };

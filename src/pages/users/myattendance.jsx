@@ -20,7 +20,6 @@ import {
   exportRowsToCsv,
   realtimeAPI,
 } from "../../services/api";
-import { seedAttendance } from "../../data/platformSeed";
 import {
   buildDashboardStats,
   formatDate,
@@ -72,8 +71,9 @@ export default function MyAttendance() {
       });
       setRecords(result.attendance || []);
     } catch (error) {
-      console.warn("Attendance preview data loaded:", error?.message);
-      setRecords(seedAttendance);
+      console.error("Unable to load attendance from Supabase:", error);
+      setRecords([]);
+      toast.error(error?.message || "Unable to load attendance from Supabase.");
     } finally {
       setLoading(false);
     }
@@ -113,6 +113,7 @@ export default function MyAttendance() {
       { label: "Time Out", value: (row) => formatTime(getRecordEnd(row)) },
       { label: "Hours", value: (row) => getRecordHours(row).toFixed(2) },
       { label: "Late Minutes", value: "late_minutes" },
+      { label: "Early Minutes", value: "early_minutes" },
       { label: "Status", value: "status" },
       { label: "Notes", value: "notes" },
     ]);
@@ -247,6 +248,7 @@ export default function MyAttendance() {
                   <th>Time Out</th>
                   <th>Hours</th>
                   <th>Late</th>
+                  <th>Early</th>
                   <th>Status</th>
                   <th>View</th>
                 </tr>
@@ -261,6 +263,7 @@ export default function MyAttendance() {
                     <td>{formatTime(getRecordEnd(record))}</td>
                     <td>{getRecordHours(record).toFixed(2)}h</td>
                     <td>{record.late_minutes || 0}m</td>
+                    <td>{record.early_minutes || 0}m</td>
                     <td><span className={`badge ${record.status}`}>{getStatusLabel(record.status)}</span></td>
                     <td>
                       <button className="icon-btn" type="button" onClick={() => setSelectedRecord(record)} aria-label="View record">
@@ -271,7 +274,7 @@ export default function MyAttendance() {
                 ))}
                 {!filteredRecords.length && (
                   <tr>
-                    <td colSpan="9" className="empty-cell">
+                    <td colSpan="10" className="empty-cell">
                       {loading ? "Loading attendance..." : "No attendance records found."}
                     </td>
                   </tr>
@@ -300,6 +303,8 @@ export default function MyAttendance() {
               <div><span>Break In</span><strong>{formatTime(selectedRecord.lunch_time_in)}</strong></div>
               <div><span>Time Out</span><strong>{formatTime(getRecordEnd(selectedRecord))}</strong></div>
               <div><span>Worked Hours</span><strong>{getRecordHours(selectedRecord).toFixed(2)}h</strong></div>
+              <div><span>Early Minutes</span><strong>{selectedRecord.early_minutes || 0}m</strong></div>
+              <div><span>Late Minutes</span><strong>{selectedRecord.late_minutes || 0}m</strong></div>
               <div><span>Status</span><strong>{getStatusLabel(selectedRecord.status)}</strong></div>
             </div>
             <div className="notes-panel">

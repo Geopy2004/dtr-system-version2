@@ -32,7 +32,6 @@ import {
   leaveAPI,
   realtimeAPI,
 } from "../../services/api";
-import { seedAttendance, seedLeaves } from "../../data/platformSeed";
 import {
   buildDashboardStats,
   buildMonthlyChart,
@@ -88,9 +87,9 @@ export default function UserDashboard() {
       setRecords(attendanceResult.attendance || []);
       setLeaves(leaveResult || []);
     } catch (error) {
-      console.warn("Dashboard preview data loaded:", error?.message);
-      setRecords(seedAttendance);
-      setLeaves(seedLeaves);
+      console.error("Unable to load dashboard data from Supabase:", error);
+      setRecords([]);
+      setLeaves([]);
     } finally {
       setLoading(false);
     }
@@ -264,7 +263,7 @@ export default function UserDashboard() {
                 <FiActivity />
               </div>
               <div className="quick-action-grid">
-                <Link className="quick-action" to="/user/myattendance">
+                <Link className="quick-action" to="/user/attendance">
                   <FiLogIn />
                   Attendance
                 </Link>

@@ -8,6 +8,79 @@ const getLocalDateString = (date = new Date()) => {
   return offsetDate.toISOString().split("T")[0];
 };
 
+const DEFAULT_SHIFT = {
+  name: "Default",
+  start_time: "08:00",
+  end_time: "17:00",
+  break_minutes: 60,
+  grace_period_minutes: 15,
+  expected_hours: 8,
+};
+
+const OPEN_SHIFT_LOOKBACK_DAYS = 2;
+const EARLY_SHIFT_WINDOW_HOURS = 4;
+
+const getMinutesFromTime = (value, fallback = 0) => {
+  if (typeof value !== "string") return fallback;
+  const [hours, minutes] = value.split(":").map((part) => Number(part));
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return fallback;
+  return hours * 60 + minutes;
+};
+
+const dateFromLocalParts = (dateString, minutesFromMidnight) => {
+  const [year, month, day] = dateString.split("-").map((part) => Number(part));
+  const date = new Date(year, month - 1, day, 0, 0, 0, 0);
+  date.setMinutes(minutesFromMidnight);
+  return date;
+};
+
+const addMinutes = (date, minutes) => new Date(date.getTime() + minutes * 60000);
+
+const normalizeShift = (shift = {}) => ({
+  ...DEFAULT_SHIFT,
+  ...Object.fromEntries(
+    Object.entries(shift || {}).filter(([, value]) => value !== null && value !== undefined)
+  ),
+});
+
+const buildShiftWindow = (attendanceDate, shiftInput) => {
+  const shift = normalizeShift(shiftInput);
+  const startMinutes = getMinutesFromTime(shift.start_time, 8 * 60);
+  const endMinutes = getMinutesFromTime(shift.end_time, 17 * 60);
+  const breakMinutes = Math.max(0, Number(shift.break_minutes) || 0);
+  const start = dateFromLocalParts(attendanceDate, startMinutes);
+  let end = dateFromLocalParts(attendanceDate, endMinutes);
+
+  if (end <= start) end = addMinutes(end, 24 * 60);
+
+  const shiftMinutes = Math.max(0, Math.round((end - start) / 60000));
+  const workBeforeBreak = Math.max(0, Math.round((shiftMinutes - breakMinutes) / 2));
+  const breakOut = addMinutes(start, workBeforeBreak);
+  const breakIn = addMinutes(breakOut, breakMinutes);
+
+  return {
+    shift,
+    start,
+    breakOut,
+    breakIn,
+    end,
+    graceMinutes: Math.max(0, Number(shift.grace_period_minutes) || 0),
+    expectedHours: Number(shift.expected_hours) || Math.max(0, (shiftMinutes - breakMinutes) / 60),
+  };
+};
+
+const getCheckpointDelta = (actualValue, target, graceMinutes = 0) => {
+  if (!actualValue || !target) return { early: 0, late: 0 };
+  const actual = new Date(actualValue);
+  if (Number.isNaN(actual.getTime())) return { early: 0, late: 0 };
+
+  const diffMinutes = Math.round((actual.getTime() - target.getTime()) / 60000);
+  return {
+    early: Math.max(0, -diffMinutes),
+    late: Math.max(0, diffMinutes - graceMinutes),
+  };
+};
+
 const getBrowserDevice = () => {
   if (typeof navigator === "undefined") return "Unknown device";
 
@@ -182,20 +255,69 @@ const calculateSplitHours = (record, endTime) => {
   return calculateHoursWorked(record.time_in || record.morning_time_in, endTime);
 };
 
-const getAttendanceStatus = (timeIn, graceMinutes = 15) => {
-  const date = new Date(timeIn);
-  const shiftStart = new Date(date);
-  shiftStart.setHours(8, graceMinutes, 0, 0);
-  const lateMinutes = Math.max(
-    0,
-    Math.round((date.getTime() - shiftStart.getTime()) / 60000)
-  );
+const getTimingBreakdown = (record, shiftInput) => {
+  const attendanceDate =
+    record.date || getAttendanceDateFromRecord(record) || getLocalDateString();
+  const window = buildShiftWindow(attendanceDate, shiftInput);
+  const checkpoints = {
+    morning_time_in: getCheckpointDelta(
+      record.morning_time_in || record.time_in,
+      window.start,
+      window.graceMinutes
+    ),
+    lunch_time_out: getCheckpointDelta(
+      record.lunch_time_out,
+      window.breakOut,
+      window.graceMinutes
+    ),
+    lunch_time_in: getCheckpointDelta(
+      record.lunch_time_in,
+      window.breakIn,
+      window.graceMinutes
+    ),
+    afternoon_time_out: getCheckpointDelta(
+      record.afternoon_time_out || record.time_out,
+      window.end,
+      window.graceMinutes
+    ),
+  };
+  const earlyMinutes = Object.values(checkpoints).reduce((sum, item) => sum + item.early, 0);
+  const lateMinutes = Object.values(checkpoints).reduce((sum, item) => sum + item.late, 0);
 
-  if (lateMinutes > 0) {
-    return { status: "late", late_minutes: lateMinutes };
-  }
+  return {
+    attendanceDate,
+    earlyMinutes,
+    lateMinutes,
+    expectedHours: window.expectedHours,
+    checkpoints,
+    targets: {
+      morning_time_in: window.start.toISOString(),
+      lunch_time_out: window.breakOut.toISOString(),
+      lunch_time_in: window.breakIn.toISOString(),
+      afternoon_time_out: window.end.toISOString(),
+    },
+    shift: {
+      name: window.shift.name,
+      start_time: window.shift.start_time,
+      end_time: window.shift.end_time,
+      break_minutes: Number(window.shift.break_minutes) || 0,
+      grace_period_minutes: window.graceMinutes,
+      expected_hours: window.expectedHours,
+    },
+  };
+};
 
-  return { status: "present", late_minutes: 0 };
+const getAttendanceStatus = ({
+  lateMinutes,
+  hoursWorked = 0,
+  expectedHours = DEFAULT_SHIFT.expected_hours,
+  hasTimeOut = false,
+}) => {
+  if (lateMinutes > 0) return "late";
+  if (!hasTimeOut) return "present";
+  if (hoursWorked > expectedHours) return "overtime";
+  if (hoursWorked < expectedHours) return "undertime";
+  return "present";
 };
 
 const getAttendanceStats = (records) => {
@@ -208,6 +330,10 @@ const getAttendanceStats = (records) => {
   const absent = records.filter((record) => record.status === "absent").length;
   const totalLateMinutes = records.reduce(
     (sum, record) => sum + (Number(record.late_minutes) || 0),
+    0
+  );
+  const totalEarlyMinutes = records.reduce(
+    (sum, record) => sum + (Number(record.early_minutes) || 0),
     0
   );
   const totalHours = records.reduce(
@@ -224,6 +350,7 @@ const getAttendanceStats = (records) => {
       ["half-day", "halfday"].includes(record.status)
     ).length,
     total_late_minutes: totalLateMinutes,
+    total_early_minutes: totalEarlyMinutes,
     total_hours: Number(totalHours.toFixed(2)),
     attendance_percentage: records.length
       ? Math.round((present / records.length) * 100)
@@ -519,40 +646,136 @@ export const profileAPI = {
   },
 };
 
+const getShiftForUser = async (user, referenceDate = new Date()) => {
+  const profile = await profileAPI.getProfile(user.id);
+  const fallbackShift = normalizeShift(profile?.shifts);
+  const referenceDates = [
+    getLocalDateString(referenceDate),
+    getLocalDateString(addMinutes(referenceDate, -24 * 60)),
+  ];
+
+  try {
+    let query = supabase
+      .from("schedules")
+      .select("*, shifts(name, start_time, end_time, break_minutes, grace_period_minutes, expected_hours)")
+      .eq("is_active", true)
+      .lte("valid_from", referenceDates[0])
+      .order("valid_from", { ascending: false });
+
+    if (profile?.department_id) {
+      query = query.or(`user_id.eq.${user.id},department_id.eq.${profile.department_id}`);
+    } else {
+      query = query.eq("user_id", user.id);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const schedule = (data || []).find((item) => {
+      if (item.valid_to && item.valid_to < referenceDates[1]) return false;
+      return referenceDates.some((dateString) => {
+        const date = dateFromLocalParts(dateString, 0);
+        return item.days_of_week?.includes?.(date.getDay());
+      });
+    });
+
+    return normalizeShift(schedule?.shifts || fallbackShift);
+  } catch {
+    return fallbackShift;
+  }
+};
+
+const getAttendanceDateForShift = (now, shift) => {
+  const today = getLocalDateString(now);
+  const candidates = [today, getLocalDateString(addMinutes(now, -24 * 60))];
+  const matchedDate = candidates.find((dateString) => {
+    const window = buildShiftWindow(dateString, shift);
+    return now >= addMinutes(window.start, -EARLY_SHIFT_WINDOW_HOURS * 60) && now <= window.end;
+  });
+
+  return matchedDate || today;
+};
+
+const getOpenAttendanceRecord = async (userId, now = new Date()) => {
+  const earliest = getLocalDateString(addMinutes(now, -OPEN_SHIFT_LOOKBACK_DAYS * 24 * 60));
+  const { data, error } = await supabase
+    .from(ATTENDANCE_TABLE)
+    .select("*")
+    .eq("user_id", userId)
+    .gte("date", earliest)
+    .is("afternoon_time_out", null)
+    .order("date", { ascending: false })
+    .order("time_in", { ascending: false })
+    .limit(1);
+
+  if (error) throw error;
+  return data?.[0] || null;
+};
+
+const buildTimingPayload = (record, shift, endTime = null) => {
+  const timing = getTimingBreakdown(record, shift);
+  const hasTimeOut = Boolean(record.afternoon_time_out || record.time_out || endTime);
+  const hoursWorked = hasTimeOut
+    ? calculateSplitHours(record, record.afternoon_time_out || record.time_out || endTime)
+    : Number(record.hours_worked) || 0;
+  const status = getAttendanceStatus({
+    lateMinutes: timing.lateMinutes,
+    hoursWorked,
+    expectedHours: timing.expectedHours,
+    hasTimeOut,
+  });
+
+  return {
+    date: timing.attendanceDate,
+    status,
+    late_minutes: timing.lateMinutes,
+    early_minutes: timing.earlyMinutes,
+    timing_breakdown: timing,
+    hours_worked: Number(hoursWorked.toFixed(2)),
+    overtime_minutes: hasTimeOut
+      ? Math.max(0, Math.round((hoursWorked - timing.expectedHours) * 60))
+      : 0,
+    undertime_minutes: hasTimeOut
+      ? Math.max(0, Math.round((timing.expectedHours - hoursWorked) * 60))
+      : 0,
+  };
+};
+
 export const attendanceAPI = {
   async morningIn(location = "", notes = "", coordinates = {}) {
     const user = await getAuthenticatedUser();
     const now = new Date();
-    const today = getLocalDateString(now);
+    const shift = await getShiftForUser(user, now);
+    const attendanceDate = getAttendanceDateForShift(now, shift);
 
     const { data: existing, error: existingError } = await supabase
       .from(ATTENDANCE_TABLE)
       .select("*")
       .eq("user_id", user.id)
-      .eq("date", today)
+      .eq("date", attendanceDate)
       .maybeSingle();
 
     if (existingError) throw existingError;
-    if (existing) throw new Error("Already timed in today.");
+    if (existing) throw new Error("Already timed in for this shift.");
 
-    const { status, late_minutes } = getAttendanceStatus(now);
+    const baseRecord = {
+      user_id: user.id,
+      date: attendanceDate,
+      time_in: now.toISOString(),
+      morning_time_in: now.toISOString(),
+      hours_worked: 0,
+    };
+    const timingPayload = buildTimingPayload(baseRecord, shift);
     const attendance = await runWithSchemaFallback(
       (payload) =>
         supabase.from(ATTENDANCE_TABLE).insert(payload).select("*").single(),
       {
-        user_id: user.id,
-        date: today,
-        time_in: now.toISOString(),
-        morning_time_in: now.toISOString(),
+        ...baseRecord,
         location,
         latitude: coordinates.latitude ?? null,
         longitude: coordinates.longitude ?? null,
         notes,
-        status,
-        late_minutes,
-        overtime_minutes: 0,
-        undertime_minutes: 0,
-        hours_worked: 0,
+        ...timingPayload,
         source: "web",
       }
     );
@@ -579,19 +802,14 @@ export const attendanceAPI = {
   async lunchOut() {
     const user = await getAuthenticatedUser();
     const now = new Date();
-    const today = getLocalDateString(now);
+    const shift = await getShiftForUser(user, now);
+    const existing = await getOpenAttendanceRecord(user.id, now);
 
-    const { data: existing, error: fetchError } = await supabase
-      .from(ATTENDANCE_TABLE)
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("date", today)
-      .maybeSingle();
-
-    if (fetchError) throw fetchError;
     if (!existing) throw new Error("No time-in record found for today.");
     if (existing.lunch_time_out) throw new Error("Lunch out is already recorded.");
 
+    const nextRecord = { ...existing, lunch_time_out: now.toISOString() };
+    const timingPayload = buildTimingPayload(nextRecord, shift);
     const attendance = await runWithSchemaFallback(
       (payload) =>
         supabase
@@ -600,7 +818,7 @@ export const attendanceAPI = {
           .eq("id", existing.id)
           .select("*")
           .single(),
-      { lunch_time_out: now.toISOString() }
+      { lunch_time_out: now.toISOString(), ...timingPayload }
     );
 
     await addAttendanceLog({
@@ -619,20 +837,15 @@ export const attendanceAPI = {
   async lunchIn() {
     const user = await getAuthenticatedUser();
     const now = new Date();
-    const today = getLocalDateString(now);
+    const shift = await getShiftForUser(user, now);
+    const existing = await getOpenAttendanceRecord(user.id, now);
 
-    const { data: existing, error: fetchError } = await supabase
-      .from(ATTENDANCE_TABLE)
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("date", today)
-      .maybeSingle();
-
-    if (fetchError) throw fetchError;
     if (!existing) throw new Error("No time-in record found for today.");
     if (!existing.lunch_time_out) throw new Error("Record break out first.");
     if (existing.lunch_time_in) throw new Error("Break in is already recorded.");
 
+    const nextRecord = { ...existing, lunch_time_in: now.toISOString() };
+    const timingPayload = buildTimingPayload(nextRecord, shift);
     const attendance = await runWithSchemaFallback(
       (payload) =>
         supabase
@@ -641,7 +854,7 @@ export const attendanceAPI = {
           .eq("id", existing.id)
           .select("*")
           .single(),
-      { lunch_time_in: now.toISOString() }
+      { lunch_time_in: now.toISOString(), ...timingPayload }
     );
 
     await addAttendanceLog({
@@ -660,16 +873,9 @@ export const attendanceAPI = {
   async timeOut() {
     const user = await getAuthenticatedUser();
     const now = new Date();
-    const today = getLocalDateString(now);
+    const shift = await getShiftForUser(user, now);
+    const existing = await getOpenAttendanceRecord(user.id, now);
 
-    const { data: existing, error: fetchError } = await supabase
-      .from(ATTENDANCE_TABLE)
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("date", today)
-      .maybeSingle();
-
-    if (fetchError) throw fetchError;
     if (!existing) throw new Error("No time-in record found for today.");
     if (existing.time_out || existing.afternoon_time_out) {
       throw new Error("Already timed out today.");
@@ -678,16 +884,12 @@ export const attendanceAPI = {
       throw new Error("Record break in first.");
     }
 
-    const hoursWorked = calculateSplitHours(existing, now);
-    const expectedHours = 8;
-    const overtimeMinutes = Math.max(0, Math.round((hoursWorked - expectedHours) * 60));
-    const undertimeMinutes = Math.max(0, Math.round((expectedHours - hoursWorked) * 60));
-    const nextStatus =
-      existing.status === "late"
-        ? "late"
-        : hoursWorked >= expectedHours
-          ? "present"
-          : "undertime";
+    const nextRecord = {
+      ...existing,
+      time_out: now.toISOString(),
+      afternoon_time_out: now.toISOString(),
+    };
+    const timingPayload = buildTimingPayload(nextRecord, shift, now);
 
     const attendance = await runWithSchemaFallback(
       (payload) =>
@@ -700,10 +902,7 @@ export const attendanceAPI = {
       {
         time_out: now.toISOString(),
         afternoon_time_out: now.toISOString(),
-        hours_worked: hoursWorked,
-        overtime_minutes: overtimeMinutes,
-        undertime_minutes: undertimeMinutes,
-        status: nextStatus,
+        ...timingPayload,
       }
     );
 
@@ -711,7 +910,7 @@ export const attendanceAPI = {
       attendanceId: attendance.id,
       eventType: "time_out",
       eventTime: now.toISOString(),
-      metadata: { hours_worked: hoursWorked },
+      metadata: { hours_worked: timingPayload.hours_worked },
     });
     await addActivityLog({
       action: "attendance.time_out",
@@ -729,6 +928,9 @@ export const attendanceAPI = {
   async getTodayRecord() {
     const user = await getAuthenticatedUser();
     const today = getLocalDateString();
+
+    const openRecord = await getOpenAttendanceRecord(user.id);
+    if (openRecord) return normalizeAttendanceRecord(openRecord);
 
     const { data, error } = await supabase
       .from(ATTENDANCE_TABLE)
@@ -793,7 +995,7 @@ export const attendanceAPI = {
   async getAllRecords(startDate, endDate) {
     let query = supabase
       .from(ATTENDANCE_TABLE)
-      .select("*, profiles(full_name, email, department, department_id, position)")
+      .select("*, profiles:profiles!attendance_user_id_fkey(full_name, email, department, department_id, position)")
       .order("date", { ascending: false })
       .order("time_in", { ascending: false });
 
@@ -994,7 +1196,7 @@ export const leaveAPI = {
   async getAllLeaves() {
     const { data, error } = await supabase
       .from("leave_requests")
-      .select("*, profiles(full_name, email, department)")
+      .select("*, profiles:profiles!leave_requests_user_id_fkey(full_name, email, department)")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data || [];

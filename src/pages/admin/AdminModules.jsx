@@ -44,11 +44,9 @@ import {
   shiftAPI,
 } from "../../services/api";
 import {
-  seedAttendance,
   seedDepartments,
   seedEmployees,
   seedHolidays,
-  seedLeaves,
   seedLogs,
   seedSchedules,
   seedShifts,
@@ -367,8 +365,9 @@ export function AdminAttendance() {
     try {
       setRecords(await attendanceAPI.getAllRecords(dateRange.start, dateRange.end));
     } catch (error) {
-      console.warn("Attendance monitor preview data loaded:", error?.message);
-      setRecords(seedAttendance);
+      console.error("Unable to load attendance records from Supabase:", error);
+      setRecords([]);
+      toast.error(error?.message || "Unable to load attendance records from Supabase.");
     } finally {
       setLoading(false);
     }
@@ -401,6 +400,7 @@ export function AdminAttendance() {
       { label: "Time In", value: (row) => formatTime(getRecordStart(row)) },
       { label: "Time Out", value: (row) => formatTime(getRecordEnd(row)) },
       { label: "Hours", value: (row) => getRecordHours(row).toFixed(2) },
+      { label: "Early Minutes", value: "early_minutes" },
       { label: "Status", value: "status" },
     ]);
   };
@@ -439,6 +439,7 @@ export function AdminAttendance() {
                   <th>Time Out</th>
                   <th>Hours</th>
                   <th>Late</th>
+                  <th>Early</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -452,11 +453,12 @@ export function AdminAttendance() {
                     <td>{formatTime(getRecordEnd(record))}</td>
                     <td>{getRecordHours(record).toFixed(2)}h</td>
                     <td>{record.late_minutes || 0}m</td>
+                    <td>{record.early_minutes || 0}m</td>
                     <td><span className={`badge ${record.status}`}>{getStatusLabel(record.status)}</span></td>
                   </tr>
                 ))}
                 {!filteredRecords.length && (
-                  <tr><td colSpan="8" className="empty-cell">{loading ? "Loading attendance..." : "No records found."}</td></tr>
+                  <tr><td colSpan="9" className="empty-cell">{loading ? "Loading attendance..." : "No records found."}</td></tr>
                 )}
               </tbody>
             </table>
@@ -899,13 +901,18 @@ export function ScheduleManagement() {
 export function AdminLeaveManagement() {
   const [leaves, setLeaves] = useState([]);
   const [reviewNote, setReviewNote] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const loadLeaves = useCallback(async () => {
+    setLoading(true);
     try {
       setLeaves(await leaveAPI.getAllLeaves());
     } catch (error) {
-      console.warn("Leave approval preview data loaded:", error?.message);
-      setLeaves(seedLeaves);
+      console.error("Unable to load leave management data from Supabase:", error);
+      setLeaves([]);
+      toast.error(error?.message || "Unable to load leave management data from Supabase.");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -959,6 +966,13 @@ export function AdminLeaveManagement() {
                     </td>
                   </tr>
                 ))}
+                {!leaves.length && (
+                  <tr>
+                    <td colSpan="6" className="empty-cell">
+                      {loading ? "Loading leave requests..." : "No leave requests found."}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -979,8 +993,9 @@ export function ReportsAnalytics() {
     try {
       setRecords(await attendanceAPI.getAllRecords(range.start, range.end));
     } catch (error) {
-      console.warn("Report preview data loaded:", error?.message);
-      setRecords(seedAttendance);
+      console.error("Unable to load attendance reports from Supabase:", error);
+      setRecords([]);
+      toast.error(error?.message || "Unable to load attendance reports from Supabase.");
     }
   }, [range.end, range.start]);
 
@@ -1001,6 +1016,7 @@ export function ReportsAnalytics() {
       { label: "Overtime Minutes", value: "overtime_minutes" },
       { label: "Undertime Minutes", value: "undertime_minutes" },
       { label: "Late Minutes", value: "late_minutes" },
+      { label: "Early Minutes", value: "early_minutes" },
       { label: "Status", value: "status" },
     ]);
   };
