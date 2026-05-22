@@ -41,8 +41,8 @@ export const seedEmployees = [
     position: "HR Manager",
     role: "admin",
     is_active: true,
-  },
-  {
+    },
+    {
     id: "seed-4",
     full_name: "Kenji Lim",
     email: "kenji.lim@company.com",

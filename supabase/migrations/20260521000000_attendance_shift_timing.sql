@@ -14,7 +14,7 @@ declare
   shift_end_time time := '17:00';
   shift_break_minutes integer := 60;
   shift_grace_minutes integer := 15;
-  expected_hours numeric := 8;
+  expected_shift_hours numeric := 8;
   shift_start timestamptz;
   shift_end timestamptz;
   break_out_target timestamptz;
@@ -39,13 +39,13 @@ begin
     coalesce(s.end_time, shift_end_time),
     coalesce(s.break_minutes, shift_break_minutes),
     coalesce(s.grace_period_minutes, shift_grace_minutes),
-    coalesce(s.expected_hours, expected_hours)
+    coalesce(s.expected_hours, expected_shift_hours)
   into
     shift_start_time,
     shift_end_time,
     shift_break_minutes,
     shift_grace_minutes,
-    expected_hours
+    expected_shift_hours
   from public.profiles p
   left join public.shifts s on s.id = p.shift_id
   where p.id = new.user_id;
@@ -55,14 +55,14 @@ begin
     shift_end_time := coalesce(nullif(new.timing_breakdown #>> '{shift,end_time}', '')::time, shift_end_time);
     shift_break_minutes := coalesce(nullif(new.timing_breakdown #>> '{shift,break_minutes}', '')::integer, shift_break_minutes);
     shift_grace_minutes := coalesce(nullif(new.timing_breakdown #>> '{shift,grace_period_minutes}', '')::integer, shift_grace_minutes);
-    expected_hours := coalesce(nullif(new.timing_breakdown #>> '{shift,expected_hours}', '')::numeric, expected_hours);
+    expected_shift_hours := coalesce(nullif(new.timing_breakdown #>> '{shift,expected_hours}', '')::numeric, expected_shift_hours);
   end if;
 
   shift_start_time := coalesce(shift_start_time, '08:00');
   shift_end_time := coalesce(shift_end_time, '17:00');
   shift_break_minutes := coalesce(shift_break_minutes, 60);
   shift_grace_minutes := coalesce(shift_grace_minutes, 15);
-  expected_hours := coalesce(expected_hours, 8);
+  expected_shift_hours := coalesce(expected_shift_hours, 8);
 
   if start_at is not null then
     if new.date is not null then
@@ -130,7 +130,7 @@ begin
         'end_time', shift_end_time,
         'break_minutes', shift_break_minutes,
         'grace_period_minutes', shift_grace_minutes,
-        'expected_hours', expected_hours
+        'expected_hours', expected_shift_hours
       ),
       'targets', jsonb_build_object(
         'morning_time_in', shift_start,
@@ -162,16 +162,16 @@ begin
       new.hours_worked := round(greatest(0, extract(epoch from (end_at - start_at)) / 3600)::numeric, 2);
     end if;
 
-    new.overtime_minutes := greatest(0, round((new.hours_worked - expected_hours) * 60)::integer);
-    new.undertime_minutes := greatest(0, round((expected_hours - new.hours_worked) * 60)::integer);
+    new.overtime_minutes := greatest(0, round((new.hours_worked - expected_shift_hours) * 60)::integer);
+    new.undertime_minutes := greatest(0, round((expected_shift_hours - new.hours_worked) * 60)::integer);
   end if;
 
   if new.status <> 'absent' then
     if new.late_minutes > 0 then
       new.status := 'late';
-    elsif end_at is not null and new.hours_worked > expected_hours then
+    elsif end_at is not null and new.hours_worked > expected_shift_hours then
       new.status := 'overtime';
-    elsif end_at is not null and new.hours_worked < expected_hours then
+    elsif end_at is not null and new.hours_worked < expected_shift_hours then
       new.status := 'undertime';
     elsif new.status in ('pending', 'late', 'overtime', 'undertime') or new.status is null then
       new.status := 'present';
