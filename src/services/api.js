@@ -1,7 +1,42 @@
 import { supabase } from "./supabase";
+import {
+  assertAllowedFile,
+  assertEnum,
+  assertIsoDate,
+  assertOptionalIsoDate,
+  assertTime,
+  assertUuid,
+  isSafeDbIdentifier,
+  isUuid,
+  normalizeLimit,
+  normalizeNonNegativeInt,
+  normalizePositiveNumber,
+  sanitizeCsvValue,
+  sanitizeEmail,
+  sanitizeFilename,
+  sanitizeText,
+} from "../utils/security";
 
 export const ATTENDANCE_TABLE =
-  import.meta.env.VITE_ATTENDANCE_TABLE || "attendance";
+  isSafeDbIdentifier(import.meta.env.VITE_ATTENDANCE_TABLE)
+    ? import.meta.env.VITE_ATTENDANCE_TABLE
+    : "attendance";
+
+const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_LEAVE_DOCUMENT_BYTES = 5 * 1024 * 1024;
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const DOCUMENT_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+const USER_ROLES = ["admin", "employee"];
+const LEAVE_TYPES = ["Vacation", "Sick", "Emergency", "Personal", "Bereavement"];
+const LEAVE_REVIEW_STATUSES = ["approved", "rejected", "cancelled"];
+const HOLIDAY_TYPES = ["Regular", "Special", "Company"];
 
 const getLocalDateString = (date = new Date()) => {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -94,7 +129,7 @@ const getBrowserDevice = () => {
 };
 
 const toCsvValue = (value) => {
-  const next = value ?? "";
+  const next = sanitizeCsvValue(value);
   return `"${String(next).replaceAll('"', '""')}"`;
 };
 
@@ -183,6 +218,90 @@ const runWithSchemaFallback = async (createQuery, payload) => {
   }
 
   throw new Error("Database schema does not match the requested payload.");
+};
+
+const pickDefined = (payload) =>
+  Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined)
+  );
+
+const sanitizeProfileUpdates = (updates = {}) =>
+  pickDefined({
+    full_name:
+      "full_name" in updates
+        ? sanitizeText(updates.full_name, { maxLength: 120, allowNewlines: false })
+        : undefined,
+    department:
+      "department" in updates
+        ? sanitizeText(updates.department, { maxLength: 80, allowNewlines: false })
+        : undefined,
+    position:
+      "position" in updates
+        ? sanitizeText(updates.position, { maxLength: 80, allowNewlines: false })
+        : undefined,
+    phone:
+      "phone" in updates
+        ? sanitizeText(updates.phone, { maxLength: 40, allowNewlines: false })
+        : undefined,
+    avatar_url:
+      "avatar_url" in updates
+        ? sanitizeText(updates.avatar_url, { maxLength: 500, allowNewlines: false })
+        : undefined,
+    role:
+      "role" in updates ? assertEnum(updates.role, USER_ROLES, "role") : undefined,
+    is_active:
+      "is_active" in updates ? Boolean(updates.is_active) : undefined,
+  });
+
+const sanitizeDepartmentPayload = (payload = {}) =>
+  pickDefined({
+    id: payload.id ? assertUuid(payload.id, "department ID") : undefined,
+    name: sanitizeText(payload.name, { maxLength: 100, allowNewlines: false }),
+    code: sanitizeText(payload.code, { maxLength: 20, allowNewlines: false }).toUpperCase(),
+    manager_id: payload.manager_id ? assertUuid(payload.manager_id, "manager ID") : null,
+    is_active: "is_active" in payload ? Boolean(payload.is_active) : true,
+  });
+
+const sanitizeShiftPayload = (payload = {}) =>
+  pickDefined({
+    id: payload.id ? assertUuid(payload.id, "shift ID") : undefined,
+    name: sanitizeText(payload.name, { maxLength: 80, allowNewlines: false }),
+    start_time: assertTime(payload.start_time || DEFAULT_SHIFT.start_time, "start time"),
+    end_time: assertTime(payload.end_time || DEFAULT_SHIFT.end_time, "end time"),
+    break_minutes: normalizeNonNegativeInt(payload.break_minutes, 60, 720),
+    grace_period_minutes: normalizeNonNegativeInt(payload.grace_period_minutes, 15, 240),
+    expected_hours: normalizePositiveNumber(payload.expected_hours, 8, 24),
+  });
+
+const sanitizeSchedulePayload = (payload = {}) => {
+  const days = Array.isArray(payload.days_of_week)
+    ? payload.days_of_week
+        .map((day) => Number.parseInt(day, 10))
+        .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    : [];
+
+  return pickDefined({
+    id: payload.id ? assertUuid(payload.id, "schedule ID") : undefined,
+    user_id: payload.user_id ? assertUuid(payload.user_id, "user ID") : null,
+    department_id: payload.department_id
+      ? assertUuid(payload.department_id, "department ID")
+      : null,
+    shift_id: assertUuid(payload.shift_id, "shift ID"),
+    valid_from: assertIsoDate(payload.valid_from, "valid from date"),
+    valid_to: assertOptionalIsoDate(payload.valid_to, "valid to date"),
+    days_of_week: [...new Set(days)],
+    is_active: "is_active" in payload ? Boolean(payload.is_active) : true,
+  });
+};
+
+const sanitizeRealtimeFilter = (filter) => {
+  if (!filter) return null;
+  const match = String(filter).match(/^([a-z_][a-z0-9_]*)=eq\.([0-9a-f-]{36})$/i);
+  if (!match || !isUuid(match[2])) {
+    throw new Error("Invalid realtime filter.");
+  }
+
+  return `${match[1]}=eq.${match[2]}`;
 };
 
 const calculateHoursWorked = (startTime, endTime) => {
@@ -423,7 +542,7 @@ const addAttendanceLog = async ({
 export const authAPI = {
   async login(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: sanitizeEmail(email),
       password,
     });
     if (error) throw error;
@@ -438,14 +557,24 @@ export const authAPI = {
   },
 
   async register({ email, password, fullName, department }) {
+    const cleanEmail = sanitizeEmail(email);
+    const cleanFullName = sanitizeText(fullName, {
+      maxLength: 120,
+      allowNewlines: false,
+    });
+    const cleanDepartment = sanitizeText(department, {
+      maxLength: 80,
+      allowNewlines: false,
+    });
+
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: cleanEmail,
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/login`,
         data: {
-          full_name: fullName,
-          department,
+          full_name: cleanFullName,
+          department: cleanDepartment,
         },
       },
     });
@@ -455,9 +584,9 @@ export const authAPI = {
       try {
         await supabase.from("profiles").upsert({
           id: data.user.id,
-          email,
-          full_name: fullName,
-          department,
+          email: cleanEmail,
+          full_name: cleanFullName,
+          department: cleanDepartment,
           role: "employee",
           is_active: true,
         });
@@ -470,9 +599,12 @@ export const authAPI = {
   },
 
   async resetPassword(email) {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/update-password`,
-    });
+    const { data, error } = await supabase.auth.resetPasswordForEmail(
+      sanitizeEmail(email),
+      {
+        redirectTo: `${window.location.origin}/update-password`,
+      }
+    );
     if (error) throw error;
     return data;
   },
@@ -536,7 +668,15 @@ export const profileAPI = {
     const role = admin ? "admin" : "employee";
 
     const fullName =
-      user.user_metadata?.full_name || user.email?.split("@")[0] || "Employee";
+      sanitizeText(user.user_metadata?.full_name || user.email?.split("@")[0], {
+        maxLength: 120,
+        allowNewlines: false,
+        fallback: "Employee",
+      }) || "Employee";
+    const department = sanitizeText(
+      user.user_metadata?.department || "Unassigned",
+      { maxLength: 80, allowNewlines: false }
+    );
 
     const existing = await profileAPI.getProfile(user.id);
     if (existing) {
@@ -556,9 +696,9 @@ export const profileAPI = {
         .from("profiles")
         .upsert({
           id: user.id,
-          email: user.email,
+          email: sanitizeEmail(user.email),
           full_name: fullName,
-          department: user.user_metadata?.department || "Unassigned",
+          department,
           role,
           is_active: true,
         })
@@ -569,9 +709,9 @@ export const profileAPI = {
         if (isMissingTable(error, "profiles")) {
           return {
             id: user.id,
-            email: user.email,
+            email: sanitizeEmail(user.email),
             full_name: fullName,
-            department: user.user_metadata?.department || "Unassigned",
+            department,
             role,
             is_active: true,
           };
@@ -583,9 +723,9 @@ export const profileAPI = {
       if (isMissingTable(error, "profiles")) {
         return {
           id: user.id,
-          email: user.email,
+          email: sanitizeEmail(user.email),
           full_name: fullName,
-          department: user.user_metadata?.department || "Unassigned",
+          department,
           role,
           is_active: true,
         };
@@ -595,10 +735,14 @@ export const profileAPI = {
   },
 
   async updateProfile(userId, updates) {
+    const cleanUserId = assertUuid(userId, "user ID");
+    const safeUpdates = sanitizeProfileUpdates(updates);
+    if (!Object.keys(safeUpdates).length) throw new Error("No valid profile updates.");
+
     const { data, error } = await supabase
       .from("profiles")
-      .update(updates)
-      .eq("id", userId)
+      .update(safeUpdates)
+      .eq("id", cleanUserId)
       .select("*")
       .single();
 
@@ -626,9 +770,14 @@ export const profileAPI = {
   },
 
   async uploadAvatar(file, userId) {
+    assertAllowedFile(file, {
+      allowedTypes: IMAGE_TYPES,
+      maxBytes: MAX_PROFILE_IMAGE_BYTES,
+      fieldName: "avatar",
+    });
     const user = await getAuthenticatedUser();
-    const ownerId = userId || user.id;
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const ownerId = userId ? assertUuid(userId, "user ID") : user.id;
+    const safeName = sanitizeFilename(file.name);
     const path = `${ownerId}/${Date.now()}-${safeName}`;
 
     const { error } = await supabase.storage
@@ -662,7 +811,7 @@ const getShiftForUser = async (user, referenceDate = new Date()) => {
       .lte("valid_from", referenceDates[0])
       .order("valid_from", { ascending: false });
 
-    if (profile?.department_id) {
+    if (isUuid(user.id) && isUuid(profile?.department_id)) {
       query = query.or(`user_id.eq.${user.id},department_id.eq.${profile.department_id}`);
     } else {
       query = query.eq("user_id", user.id);
@@ -747,6 +896,13 @@ export const attendanceAPI = {
     const now = new Date();
     const shift = await getShiftForUser(user, now);
     const attendanceDate = getAttendanceDateForShift(now, shift);
+    const cleanLocation = sanitizeText(location, {
+      maxLength: 160,
+      allowNewlines: false,
+    });
+    const cleanNotes = sanitizeText(notes, { maxLength: 500 });
+    const latitude = Number(coordinates.latitude);
+    const longitude = Number(coordinates.longitude);
 
     const { data: existing, error: existingError } = await supabase
       .from(ATTENDANCE_TABLE)
@@ -771,10 +927,10 @@ export const attendanceAPI = {
         supabase.from(ATTENDANCE_TABLE).insert(payload).select("*").single(),
       {
         ...baseRecord,
-        location,
-        latitude: coordinates.latitude ?? null,
-        longitude: coordinates.longitude ?? null,
-        notes,
+        location: cleanLocation,
+        latitude: Number.isFinite(latitude) ? latitude : null,
+        longitude: Number.isFinite(longitude) ? longitude : null,
+        notes: cleanNotes,
         ...timingPayload,
         source: "web",
       }
@@ -784,7 +940,7 @@ export const attendanceAPI = {
       attendanceId: attendance.id,
       eventType: "time_in",
       eventTime: now.toISOString(),
-      metadata: { location },
+      metadata: { location: cleanLocation },
     });
     await addActivityLog({
       action: "attendance.time_in",
@@ -963,13 +1119,15 @@ export const attendanceAPI = {
 
   async getRecords(startDate, endDate) {
     const user = await getAuthenticatedUser();
+    const safeStartDate = assertIsoDate(startDate, "start date");
+    const safeEndDate = assertIsoDate(endDate, "end date");
 
     const { data, error } = await supabase
       .from(ATTENDANCE_TABLE)
       .select("*")
       .eq("user_id", user.id)
-      .gte("date", startDate)
-      .lte("date", endDate)
+      .gte("date", safeStartDate)
+      .lte("date", safeEndDate)
       .order("date", { ascending: false })
       .order("time_in", { ascending: false });
 
@@ -986,21 +1144,23 @@ export const attendanceAPI = {
     return sortAttendanceRecords(
       filterAttendanceByDateRange(
         (legacyData || []).map(normalizeAttendanceRecord),
-        startDate,
-        endDate
+        safeStartDate,
+        safeEndDate
       )
     );
   },
 
   async getAllRecords(startDate, endDate) {
+    const safeStartDate = assertOptionalIsoDate(startDate, "start date");
+    const safeEndDate = assertOptionalIsoDate(endDate, "end date");
     let query = supabase
       .from(ATTENDANCE_TABLE)
       .select("*, profiles:profiles!attendance_user_id_fkey(full_name, email, department, department_id, position)")
       .order("date", { ascending: false })
       .order("time_in", { ascending: false });
 
-    if (startDate) query = query.gte("date", startDate);
-    if (endDate) query = query.lte("date", endDate);
+    if (safeStartDate) query = query.gte("date", safeStartDate);
+    if (safeEndDate) query = query.lte("date", safeEndDate);
 
     const { data, error } = await query;
     if (!error) return (data || []).map(normalizeAttendanceRecord);
@@ -1017,8 +1177,8 @@ export const attendanceAPI = {
     return sortAttendanceRecords(
       filterAttendanceByDateRange(
         (legacyData || []).map(normalizeAttendanceRecord),
-        startDate,
-        endDate
+        safeStartDate,
+        safeEndDate
       )
     );
   },
@@ -1026,20 +1186,23 @@ export const attendanceAPI = {
   async getMyAttendance(params = {}) {
     const { startDate, endDate, limit } = params;
     const user = await getAuthenticatedUser();
+    const safeStartDate = assertOptionalIsoDate(startDate, "start date");
+    const safeEndDate = assertOptionalIsoDate(endDate, "end date");
+    const safeLimit = limit ? normalizeLimit(limit, 100, 250) : null;
 
     let query = supabase
       .from(ATTENDANCE_TABLE)
       .select("*")
       .eq("user_id", user.id);
 
-    if (startDate) query = query.gte("date", startDate);
-    if (endDate) query = query.lte("date", endDate);
+    if (safeStartDate) query = query.gte("date", safeStartDate);
+    if (safeEndDate) query = query.lte("date", safeEndDate);
 
     query = query
       .order("date", { ascending: false })
       .order("time_in", { ascending: false });
 
-    if (limit) query = query.limit(limit);
+    if (safeLimit) query = query.limit(safeLimit);
 
     const { data, error } = await query;
     let records;
@@ -1055,7 +1218,7 @@ export const attendanceAPI = {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
-      if (limit) legacyQuery = legacyQuery.limit(limit);
+      if (safeLimit) legacyQuery = legacyQuery.limit(safeLimit);
 
       const { data: legacyData, error: legacyError } = await legacyQuery;
       if (legacyError) throw legacyError;
@@ -1063,8 +1226,8 @@ export const attendanceAPI = {
       records = sortAttendanceRecords(
         filterAttendanceByDateRange(
           (legacyData || []).map(normalizeAttendanceRecord),
-          startDate,
-          endDate
+          safeStartDate,
+          safeEndDate
         )
       );
     }
@@ -1087,9 +1250,10 @@ export const departmentAPI = {
   },
 
   async saveDepartment(payload) {
-    const query = payload.id
-      ? supabase.from("departments").update(payload).eq("id", payload.id)
-      : supabase.from("departments").insert(payload);
+    const safePayload = sanitizeDepartmentPayload(payload);
+    const query = safePayload.id
+      ? supabase.from("departments").update(safePayload).eq("id", safePayload.id)
+      : supabase.from("departments").insert(safePayload);
     const { data, error } = await query.select("*").single();
     if (error) throw error;
     return data;
@@ -1107,9 +1271,10 @@ export const shiftAPI = {
   },
 
   async saveShift(payload) {
-    const query = payload.id
-      ? supabase.from("shifts").update(payload).eq("id", payload.id)
-      : supabase.from("shifts").insert(payload);
+    const safePayload = sanitizeShiftPayload(payload);
+    const query = safePayload.id
+      ? supabase.from("shifts").update(safePayload).eq("id", safePayload.id)
+      : supabase.from("shifts").insert(safePayload);
     const { data, error } = await query.select("*").single();
     if (error) throw error;
     return data;
@@ -1125,9 +1290,10 @@ export const shiftAPI = {
   },
 
   async saveSchedule(payload) {
-    const query = payload.id
-      ? supabase.from("schedules").update(payload).eq("id", payload.id)
-      : supabase.from("schedules").insert(payload);
+    const safePayload = sanitizeSchedulePayload(payload);
+    const query = safePayload.id
+      ? supabase.from("schedules").update(safePayload).eq("id", safePayload.id)
+      : supabase.from("schedules").insert(safePayload);
     const { data, error } = await query.select("*").single();
     if (error) throw error;
     return data;
@@ -1136,8 +1302,13 @@ export const shiftAPI = {
 
 export const leaveAPI = {
   async uploadDocument(file) {
+    assertAllowedFile(file, {
+      allowedTypes: DOCUMENT_TYPES,
+      maxBytes: MAX_LEAVE_DOCUMENT_BYTES,
+      fieldName: "leave document",
+    });
     const user = await getAuthenticatedUser();
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const safeName = sanitizeFilename(file.name);
     const path = `${user.id}/${Date.now()}-${safeName}`;
 
     const { error } = await supabase.storage
@@ -1155,6 +1326,11 @@ export const leaveAPI = {
   async submitRequest(payload, file) {
     const user = await getAuthenticatedUser();
     const documentUrl = file ? await leaveAPI.uploadDocument(file) : null;
+    const leaveType = assertEnum(payload.leave_type, LEAVE_TYPES, "leave type");
+    const startDate = assertIsoDate(payload.start_date, "start date");
+    const endDate = assertIsoDate(payload.end_date, "end date");
+    if (startDate > endDate) throw new Error("Start date cannot be after end date.");
+
     const data = await runWithSchemaFallback(
       (request) =>
         supabase
@@ -1164,11 +1340,11 @@ export const leaveAPI = {
           .single(),
       {
         user_id: user.id,
-        leave_type: payload.leave_type,
-        start_date: payload.start_date,
-        end_date: payload.end_date,
-        total_days: Number(payload.total_days) || 1,
-        reason: payload.reason,
+        leave_type: leaveType,
+        start_date: startDate,
+        end_date: endDate,
+        total_days: normalizePositiveNumber(payload.total_days, 1, 365),
+        reason: sanitizeText(payload.reason, { maxLength: 1000 }),
         document_url: documentUrl,
         status: "pending",
       }
@@ -1176,7 +1352,7 @@ export const leaveAPI = {
 
     await addActivityLog({
       action: "leave.submit",
-      description: `Submitted ${payload.leave_type} leave request`,
+      description: `Submitted ${leaveType} leave request`,
       metadata: { leave_request_id: data.id },
     });
     return data;
@@ -1204,15 +1380,18 @@ export const leaveAPI = {
 
   async reviewLeave(id, status, review_notes = "") {
     const user = await getAuthenticatedUser();
+    const safeId = assertUuid(id, "leave request ID");
+    const safeStatus = assertEnum(status, LEAVE_REVIEW_STATUSES, "leave status");
+    const safeReviewNotes = sanitizeText(review_notes, { maxLength: 1000 });
     const { data, error } = await supabase
       .from("leave_requests")
       .update({
-        status,
-        review_notes,
+        status: safeStatus,
+        review_notes: safeReviewNotes,
         reviewed_by: user.id,
         reviewed_at: new Date().toISOString(),
       })
-      .eq("id", id)
+      .eq("id", safeId)
       .select("*")
       .single();
     if (error) throw error;
@@ -1223,19 +1402,21 @@ export const leaveAPI = {
 export const logAPI = {
   async getMyLogs(limit = 100) {
     const user = await getAuthenticatedUser();
+    if (!isUuid(user.id)) throw new Error("Invalid user ID.");
+    const safeLimit = normalizeLimit(limit, 100, 250);
     const [activityResult, attendanceResult] = await Promise.all([
       supabase
         .from("activity_logs")
         .select("*")
         .or(`actor_id.eq.${user.id},target_user_id.eq.${user.id}`)
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .limit(safeLimit),
       supabase
         .from("attendance_logs")
         .select("*")
         .eq("user_id", user.id)
         .order("event_time", { ascending: false })
-        .limit(limit),
+        .limit(safeLimit),
     ]);
 
     if (activityResult.error) throw activityResult.error;
@@ -1259,11 +1440,12 @@ export const logAPI = {
   },
 
   async getAuditTrail(limit = 250) {
+    const safeLimit = normalizeLimit(limit, 250, 500);
     const { data, error } = await supabase
       .from("activity_logs")
       .select("*, actor:profiles!activity_logs_actor_id_fkey(full_name, email)")
       .order("created_at", { ascending: false })
-      .limit(limit);
+      .limit(safeLimit);
     if (error) throw error;
     return data || [];
   },
@@ -1272,6 +1454,7 @@ export const logAPI = {
 export const notificationAPI = {
   async getMyNotifications() {
     const user = await getAuthenticatedUser();
+    if (!isUuid(user.id)) throw new Error("Invalid user ID.");
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
@@ -1283,10 +1466,11 @@ export const notificationAPI = {
   },
 
   async markRead(id) {
+    const safeId = assertUuid(id, "notification ID");
     const { data, error } = await supabase
       .from("notifications")
       .update({ read_at: new Date().toISOString() })
-      .eq("id", id)
+      .eq("id", safeId)
       .select("*")
       .single();
     if (error) throw error;
@@ -1333,27 +1517,42 @@ export const adminAPI = {
   },
 
   async createEmployee(payload) {
+    const safePayload = {
+      full_name: sanitizeText(payload.full_name, {
+        maxLength: 120,
+        allowNewlines: false,
+      }),
+      email: sanitizeEmail(payload.email),
+      department: sanitizeText(payload.department, {
+        maxLength: 80,
+        allowNewlines: false,
+      }),
+      role: assertEnum(payload.role || "employee", USER_ROLES, "role"),
+      password: String(payload.password || ""),
+    };
     const { data, error } = await supabase.functions.invoke("invite-employee", {
-      body: payload,
+      body: safePayload,
     });
     if (error) throw error;
     return data;
   },
 
   async updateUser(userId, updates) {
-    return profileAPI.updateProfile(userId, updates);
+    return profileAPI.updateProfile(assertUuid(userId, "user ID"), updates);
   },
 
   async deleteUser(userId) {
-    return profileAPI.updateProfile(userId, { is_active: false });
+    return profileAPI.updateProfile(assertUuid(userId, "user ID"), { is_active: false });
   },
 
   async archiveUser(userId, isActive) {
-    return profileAPI.updateProfile(userId, { is_active: isActive });
+    return profileAPI.updateProfile(assertUuid(userId, "user ID"), {
+      is_active: Boolean(isActive),
+    });
   },
 
   async sendPasswordReset(email) {
-    return authAPI.resetPassword(email);
+    return authAPI.resetPassword(sanitizeEmail(email));
   },
 
   async getHolidays() {
@@ -1366,9 +1565,15 @@ export const adminAPI = {
   },
 
   async saveHoliday(payload) {
-    const query = payload.id
-      ? supabase.from("holidays").update(payload).eq("id", payload.id)
-      : supabase.from("holidays").insert(payload);
+    const safePayload = pickDefined({
+      id: payload.id ? assertUuid(payload.id, "holiday ID") : undefined,
+      name: sanitizeText(payload.name, { maxLength: 120, allowNewlines: false }),
+      date: assertIsoDate(payload.date, "holiday date"),
+      type: assertEnum(payload.type || "Regular", HOLIDAY_TYPES, "holiday type"),
+    });
+    const query = safePayload.id
+      ? supabase.from("holidays").update(safePayload).eq("id", safePayload.id)
+      : supabase.from("holidays").insert(safePayload);
     const { data, error } = await query.select("*").single();
     if (error) throw error;
     return data;
@@ -1377,11 +1582,12 @@ export const adminAPI = {
 
 export const realtimeAPI = {
   subscribeToAttendance(callback, filter) {
+    const safeFilter = sanitizeRealtimeFilter(filter);
     let config = { event: "*", schema: "public", table: ATTENDANCE_TABLE };
-    if (filter) config = { ...config, filter };
+    if (safeFilter) config = { ...config, filter: safeFilter };
 
     const channel = supabase
-      .channel(`attendance:${filter || "all"}`)
+      .channel(`attendance:${safeFilter || "all"}`)
       .on("postgres_changes", config, callback)
       .subscribe();
 
@@ -1389,11 +1595,13 @@ export const realtimeAPI = {
   },
 
   subscribeToTable(table, callback, filter) {
+    if (!isSafeDbIdentifier(table)) throw new Error("Invalid realtime table.");
+    const safeFilter = sanitizeRealtimeFilter(filter);
     let config = { event: "*", schema: "public", table };
-    if (filter) config = { ...config, filter };
+    if (safeFilter) config = { ...config, filter: safeFilter };
 
     const channel = supabase
-      .channel(`${table}:${filter || "all"}`)
+      .channel(`${table}:${safeFilter || "all"}`)
       .on("postgres_changes", config, callback)
       .subscribe();
 

@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { assertIsoDate, assertUuid, normalizeLimit } from "../utils/security";
 
 // ─────────────────────────────────────────────
 // ATTENDANCE API
@@ -7,6 +8,7 @@ import { supabase } from "./supabase";
 export const attendanceAPI = {
   // TIME IN
   async timeIn(userId) {
+    const safeUserId = assertUuid(userId, "user ID");
     const now = new Date();
     const today = now.toISOString().split("T")[0];
 
@@ -15,7 +17,7 @@ export const attendanceAPI = {
       await supabase
         .from("attendance")
         .select("*")
-        .eq("user_id", userId)
+        .eq("user_id", safeUserId)
         .eq("date", today)
         .maybeSingle();
 
@@ -44,7 +46,7 @@ export const attendanceAPI = {
       .from("attendance")
       .insert([
         {
-          user_id: userId,
+          user_id: safeUserId,
           date: today,
           time_in: now.toISOString(),
           status,
@@ -61,6 +63,7 @@ export const attendanceAPI = {
 
   // TIME OUT
   async timeOut(userId) {
+    const safeUserId = assertUuid(userId, "user ID");
     const now = new Date();
     const today = now.toISOString().split("T")[0];
 
@@ -70,7 +73,7 @@ export const attendanceAPI = {
     } = await supabase
       .from("attendance")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", safeUserId)
       .eq("date", today)
       .maybeSingle();
 
@@ -112,6 +115,7 @@ export const attendanceAPI = {
 
   // TODAY RECORD
   async getTodayRecord(userId) {
+    const safeUserId = assertUuid(userId, "user ID");
     const today = new Date()
       .toISOString()
       .split("T")[0];
@@ -119,7 +123,7 @@ export const attendanceAPI = {
     const { data, error } = await supabase
       .from("attendance")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", safeUserId)
       .eq("date", today)
       .maybeSingle();
 
@@ -134,12 +138,15 @@ export const attendanceAPI = {
     startDate,
     endDate
   ) {
+    const safeUserId = assertUuid(userId, "user ID");
+    const safeStartDate = assertIsoDate(startDate, "start date");
+    const safeEndDate = assertIsoDate(endDate, "end date");
     const { data, error } = await supabase
       .from("attendance")
       .select("*")
-      .eq("user_id", userId)
-      .gte("date", startDate)
-      .lte("date", endDate)
+      .eq("user_id", safeUserId)
+      .gte("date", safeStartDate)
+      .lte("date", safeEndDate)
       .order("date", { ascending: false });
 
     if (error) throw error;
@@ -182,7 +189,7 @@ export const attendanceAPI = {
     }
 
     if (limit) {
-      query = query.limit(limit);
+      query = query.limit(normalizeLimit(limit, 100, 250));
     }
 
     const { data, error } = await query;
@@ -217,6 +224,8 @@ export const attendanceAPI = {
 
   // ADMIN: ALL RECORDS
   async getAllRecords(startDate, endDate) {
+    const safeStartDate = assertIsoDate(startDate, "start date");
+    const safeEndDate = assertIsoDate(endDate, "end date");
     const { data, error } = await supabase
       .from("attendance")
       .select(
@@ -229,8 +238,8 @@ export const attendanceAPI = {
         )
       `
       )
-      .gte("date", startDate)
-      .lte("date", endDate)
+      .gte("date", safeStartDate)
+      .lte("date", safeEndDate)
       .order("date", { ascending: false });
 
     if (error) throw error;
@@ -244,6 +253,9 @@ export const attendanceAPI = {
     startDate,
     endDate
   ) {
+    const safeUserId = assertUuid(userId, "user ID");
+    const safeStartDate = assertIsoDate(startDate, "start date");
+    const safeEndDate = assertIsoDate(endDate, "end date");
     const { data, error } = await supabase
       .from("attendance")
       .select(
@@ -256,9 +268,9 @@ export const attendanceAPI = {
         )
       `
       )
-      .eq("user_id", userId)
-      .gte("date", startDate)
-      .lte("date", endDate)
+      .eq("user_id", safeUserId)
+      .gte("date", safeStartDate)
+      .lte("date", safeEndDate)
       .order("date", { ascending: false });
 
     if (error) throw error;
@@ -354,7 +366,7 @@ export const adminAPI = {
       .order("date", {
         ascending: false,
       })
-      .limit(limit);
+      .limit(normalizeLimit(limit, 10, 250));
 
     if (error) throw error;
 
