@@ -34,6 +34,19 @@ import {
 const sameDate = (a, b) =>
   a && b && a.toISOString().split("T")[0] === b.toISOString().split("T")[0];
 
+const formatDtrTime = (value) => {
+  const date = safeDate(value);
+  return date ? format(date, "hh:mm a") : "";
+};
+
+const minutesToHoursMinutes = (minutes = 0) => {
+  const total = Math.max(0, Number(minutes) || 0);
+  return {
+    hours: Math.floor(total / 60),
+    minutes: total % 60,
+  };
+};
+
 const buildCalendarDays = (month, records) => {
   const first = startOfMonth(month);
   const last = endOfMonth(month);
@@ -53,8 +66,52 @@ const buildCalendarDays = (month, records) => {
   return days;
 };
 
+const buildDtrRows = (month, records) => {
+  const recordsByDay = new Map(
+    records.map((record) => [formatDate(record.date, "yyyy-MM-dd"), record])
+  );
+
+  return Array.from({ length: 31 }, (_, index) => {
+    const day = index + 1;
+    const date = new Date(month.getFullYear(), month.getMonth(), day);
+    const isInMonth = date.getMonth() === month.getMonth();
+    const record = isInMonth
+      ? recordsByDay.get(format(date, "yyyy-MM-dd"))
+      : null;
+    const undertime = minutesToHoursMinutes(record?.undertime_minutes);
+
+    return {
+      day,
+      amArrival: formatDtrTime(record?.morning_time_in || record?.time_in),
+      amDeparture: formatDtrTime(record?.lunch_time_out),
+      pmArrival: formatDtrTime(record?.lunch_time_in),
+      pmDeparture: formatDtrTime(record?.afternoon_time_out || record?.time_out),
+      undertimeHours: record ? undertime.hours || "" : "",
+      undertimeMinutes: record ? undertime.minutes || "" : "",
+    };
+  });
+};
+
+const escapeExcelValue = (value) =>
+  String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+
+const downloadExcelFile = (filename, html) => {
+  const blob = new Blob([html], {
+    type: "application/vnd.ms-excel;charset=utf-8;",
+  });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+};
+
 export default function MyAttendance() {
-  const { user } = useAuth();
+  const { profile, user } = useAuth();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(new Date());
@@ -103,6 +160,19 @@ export default function MyAttendance() {
     });
   }, [records, search, status]);
   const calendarDays = useMemo(() => buildCalendarDays(month, records), [month, records]);
+  const dtrRows = useMemo(() => buildDtrRows(month, records), [month, records]);
+  const totalUndertime = useMemo(
+    () =>
+      minutesToHoursMinutes(
+        records.reduce((sum, record) => sum + (Number(record.undertime_minutes) || 0), 0)
+      ),
+    [records]
+  );
+  const employeeName =
+    profile?.full_name ||
+    user?.user_metadata?.full_name ||
+    user?.email ||
+    "Employee";
 
   const exportAttendance = () => {
     exportRowsToCsv(`my-dtr-${format(month, "yyyy-MM")}.csv`, filteredRecords, [
@@ -118,6 +188,76 @@ export default function MyAttendance() {
       { label: "Notes", value: "notes" },
     ]);
     toast.success("Attendance exported.");
+  };
+
+  const exportCivilServiceDtr = () => {
+    const rows = dtrRows
+      .map(
+        (row) => `
+          <tr>
+            <td>${row.day}</td>
+            <td>${escapeExcelValue(row.amArrival)}</td>
+            <td>${escapeExcelValue(row.amDeparture)}</td>
+            <td>${escapeExcelValue(row.pmArrival)}</td>
+            <td>${escapeExcelValue(row.pmDeparture)}</td>
+            <td>${escapeExcelValue(row.undertimeHours)}</td>
+            <td>${escapeExcelValue(row.undertimeMinutes)}</td>
+          </tr>`
+      )
+      .join("");
+
+    const html = `
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            body { font-family: "Times New Roman", serif; }
+            table { border-collapse: collapse; }
+            td, th { border: 1px solid #000; padding: 4px; text-align: center; }
+            .no-border { border: 0; }
+            .title { font-size: 16px; font-weight: 700; text-align: center; }
+            .line { border-bottom: 1px solid #000; font-weight: 700; }
+            .left { text-align: left; }
+            .cert { text-align: justify; }
+          </style>
+        </head>
+        <body>
+          <table>
+            <tr><td colspan="7" class="no-border left">Civil Service Form No. 48</td></tr>
+            <tr><td colspan="7" class="no-border title">DAILY TIME RECORD</td></tr>
+            <tr><td colspan="7" class="no-border">-----o0o-----</td></tr>
+            <tr><td colspan="7" class="line">${escapeExcelValue(employeeName)}</td></tr>
+            <tr><td colspan="7" class="no-border">(Name)</td></tr>
+            <tr><td colspan="3" class="no-border left">For the month of</td><td colspan="4" class="line">${format(month, "MMMM yyyy")}</td></tr>
+            <tr><td colspan="7" class="no-border left">Official hours for arrival and departure</td></tr>
+            <tr><td colspan="2" class="no-border left">Regular days</td><td colspan="5" class="line">8:00 AM - 5:00 PM</td></tr>
+            <tr><td colspan="2" class="no-border left">Saturdays</td><td colspan="5" class="line"></td></tr>
+            <tr>
+              <th rowspan="2">Day</th>
+              <th colspan="2">A.M.</th>
+              <th colspan="2">P.M.</th>
+              <th colspan="2">Undertime</th>
+            </tr>
+            <tr>
+              <th>Arrival</th>
+              <th>Departure</th>
+              <th>Arrival</th>
+              <th>Departure</th>
+              <th>Hours</th>
+              <th>Minutes</th>
+            </tr>
+            ${rows}
+            <tr><td colspan="5"><strong>Total</strong></td><td>${totalUndertime.hours || ""}</td><td>${totalUndertime.minutes || ""}</td></tr>
+            <tr><td colspan="7" class="no-border cert">I certify on my honor that the above is a true and correct report of the hours of work performed, record of which was made daily at the time of arrival and departure from office.</td></tr>
+            <tr><td colspan="2" class="no-border"></td><td colspan="3" class="line">${escapeExcelValue(employeeName)}</td><td colspan="2" class="no-border"></td></tr>
+            <tr><td colspan="7" class="no-border left">VERIFIED as to the prescribed office hours:</td></tr>
+            <tr><td colspan="2" class="no-border"></td><td colspan="3" class="line">In Charge</td><td colspan="2" class="no-border"></td></tr>
+          </table>
+        </body>
+      </html>`;
+
+    downloadExcelFile(`cs-form-48-dtr-${format(month, "yyyy-MM")}.xls`, html);
+    toast.success("Civil Service DTR Excel exported.");
   };
 
   const metricCards = [
@@ -230,6 +370,10 @@ export default function MyAttendance() {
                 <FiDownload />
                 Export
               </button>
+              <button className="ghost-btn" type="button" onClick={exportCivilServiceDtr}>
+                <FiDownload />
+                Excel DTR
+              </button>
               <button className="ghost-btn" type="button" onClick={() => window.print()}>
                 <FiPrinter />
                 Print
@@ -281,6 +425,76 @@ export default function MyAttendance() {
                 )}
               </tbody>
             </table>
+          </div>
+        </section>
+
+        <section className="cs-dtr-print" aria-label="Civil Service Form No. 48 Daily Time Record">
+          <div className="cs-dtr-form">
+            <div className="cs-dtr-form-no">Civil Service Form No. 48</div>
+            <h2>DAILY TIME RECORD</h2>
+            <div className="cs-dtr-divider">-----o0o-----</div>
+
+            <div className="cs-dtr-name">{employeeName}</div>
+            <div className="cs-dtr-name-label">(Name)</div>
+
+            <p className="cs-dtr-month">For the month of <span>{format(month, "MMMM yyyy")}</span></p>
+
+            <div className="cs-dtr-hours">
+              <span>Official hours for arrival and departure</span>
+              <div><strong>Regular days</strong><i>8:00 AM - 5:00 PM</i></div>
+              <div><strong>Saturdays</strong><i>&nbsp;</i></div>
+            </div>
+
+            <table className="cs-dtr-table">
+              <thead>
+                <tr>
+                  <th rowSpan="2">Day</th>
+                  <th colSpan="2">A.M.</th>
+                  <th colSpan="2">P.M.</th>
+                  <th colSpan="2">Undertime</th>
+                </tr>
+                <tr>
+                  <th>Arrival</th>
+                  <th>Departure</th>
+                  <th>Arrival</th>
+                  <th>Departure</th>
+                  <th>Hours</th>
+                  <th>Minutes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dtrRows.map((row) => (
+                  <tr key={row.day}>
+                    <td>{row.day}</td>
+                    <td>{row.amArrival}</td>
+                    <td>{row.amDeparture}</td>
+                    <td>{row.pmArrival}</td>
+                    <td>{row.pmDeparture}</td>
+                    <td>{row.undertimeHours}</td>
+                    <td>{row.undertimeMinutes}</td>
+                  </tr>
+                ))}
+                <tr className="cs-dtr-total-row">
+                  <td colSpan="5">Total</td>
+                  <td>{totalUndertime.hours || ""}</td>
+                  <td>{totalUndertime.minutes || ""}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <p className="cs-dtr-certification">
+              I certify on my honor that the above is a true and correct report of the hours of work performed,
+              record of which was made daily at the time of arrival and departure from office.
+            </p>
+
+            <div className="cs-dtr-signature">
+              <span>{employeeName}</span>
+            </div>
+
+            <p className="cs-dtr-verified">VERIFIED as to the prescribed office hours:</p>
+            <div className="cs-dtr-signature in-charge">
+              <span>In Charge</span>
+            </div>
           </div>
         </section>
       </div>

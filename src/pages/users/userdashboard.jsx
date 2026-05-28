@@ -20,6 +20,9 @@ import {
   FiClock,
   FiFileText,
   FiLogIn,
+  FiMapPin,
+  FiNavigation,
+  FiRefreshCw,
   FiTrendingUp,
   FiUserCheck,
 } from "react-icons/fi";
@@ -65,12 +68,25 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
+const getMapUrl = (location) => {
+  if (!location) return "";
+  const delta = 0.006;
+  const left = location.lng - delta;
+  const right = location.lng + delta;
+  const top = location.lat + delta;
+  const bottom = location.lat - delta;
+
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${left},${bottom},${right},${top}&layer=mapnik&marker=${location.lat},${location.lng}`;
+};
+
 export default function UserDashboard() {
   const { profile, user } = useAuth();
   const [clock, setClock] = useState(new Date());
   const [records, setRecords] = useState([]);
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [location, setLocation] = useState(null);
+  const [locationStatus, setLocationStatus] = useState("Locating...");
 
   const displayName =
     profile?.full_name || profile?.name || user?.email?.split("@")[0] || "Operator";
@@ -110,11 +126,64 @@ export default function UserDashboard() {
     return realtimeAPI.subscribeToAttendance(loadDashboard, `user_id=eq.${user.id}`);
   }, [loadDashboard, user?.id]);
 
+  const updateLocation = useCallback((position) => {
+    setLocation({
+      lat: position.coords.latitude,
+      lng: position.coords.longitude,
+      accuracy: Math.round(position.coords.accuracy || 0),
+      updatedAt: new Date(position.timestamp || Date.now()),
+    });
+    setLocationStatus("Live location active");
+  }, []);
+
+  const handleLocationError = useCallback((error) => {
+    const messages = {
+      1: "Location permission is blocked",
+      2: "Location is unavailable",
+      3: "Location request timed out",
+    };
+    setLocationStatus(messages[error.code] || "Unable to get location");
+  }, []);
+
+  const refreshLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus("Geolocation is not supported");
+      return;
+    }
+
+    setLocationStatus("Updating location...");
+    navigator.geolocation.getCurrentPosition(updateLocation, handleLocationError, {
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+      timeout: 10000,
+    });
+  }, [handleLocationError, updateLocation]);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus("Geolocation is not supported");
+      return undefined;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      updateLocation,
+      handleLocationError,
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 15000,
+      }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [handleLocationError, updateLocation]);
+
   const stats = useMemo(() => buildDashboardStats(records), [records]);
   const weeklyChart = useMemo(() => buildWeeklyChart(records), [records]);
   const monthlyChart = useMemo(() => buildMonthlyChart(records), [records]);
   const todayRecord = useMemo(() => getTodayRecord(records), [records]);
   const recentRecords = useMemo(() => records.slice(0, 5), [records]);
+  const liveMapUrl = useMemo(() => getMapUrl(location), [location]);
   const pendingLeaves = leaves.filter((leave) => leave.status === "pending").length;
 
   const metrics = [
@@ -279,6 +348,54 @@ export default function UserDashboard() {
                   <FiCheckCircle />
                   Print DTR
                 </button>
+              </div>
+            </div>
+
+            <div className="glass-card live-map-card">
+              <div className="card-title-row">
+                <div>
+                  <span className="eyebrow">Live Map</span>
+                  <h3>Current location</h3>
+                </div>
+                <button
+                  className="icon-btn"
+                  type="button"
+                  onClick={refreshLocation}
+                  aria-label="Refresh location"
+                  title="Refresh location"
+                >
+                  <FiRefreshCw />
+                </button>
+              </div>
+
+              <div className="live-map-frame">
+                {liveMapUrl ? (
+                  <iframe
+                    title="Live current location map"
+                    src={liveMapUrl}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                ) : (
+                  <div className="live-map-empty">
+                    <FiNavigation />
+                    <span>{locationStatus}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="live-map-meta">
+                <span>
+                  <FiMapPin />
+                  {location
+                    ? `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`
+                    : locationStatus}
+                </span>
+                {location && (
+                  <small>
+                    Accuracy {location.accuracy}m · Updated {format(location.updatedAt, "hh:mm:ss a")}
+                  </small>
+                )}
               </div>
             </div>
 

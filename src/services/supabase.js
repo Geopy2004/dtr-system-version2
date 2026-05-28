@@ -3,4 +3,32 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+const clearPersistentAuthStorage = () => {
+  if (typeof window === "undefined") return;
+
+  Object.keys(window.localStorage)
+    .filter((key) => key.startsWith("sb-") && key.endsWith("-auth-token"))
+    .forEach((key) => window.localStorage.removeItem(key));
+};
+
+const clearSessionAuthStorage = () => {
+  if (typeof window === "undefined") return;
+
+  Object.keys(window.sessionStorage)
+    .filter((key) => key.startsWith("sb-") && key.endsWith("-auth-token"))
+    .forEach((key) => window.sessionStorage.removeItem(key));
+};
+
+clearPersistentAuthStorage();
+
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", clearSessionAuthStorage);
+}
+
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    storage:
+      typeof window === "undefined" ? undefined : window.sessionStorage,
+  },
+});

@@ -85,7 +85,7 @@ const Login = () => {
                 autoComplete="email"
                 value={form.email}
                 onChange={handleChange("email")}
-                placeholder="you@company.com"
+                placeholder="you@gmail.com"
                 disabled={loading || submitting}
               />
             </div>
