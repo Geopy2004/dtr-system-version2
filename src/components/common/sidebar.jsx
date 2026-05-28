@@ -7,6 +7,7 @@ import {
   MdAdminPanelSettings,
   MdClose,
   MdDashboard,
+  MdEdit,
   MdHistory,
   MdLogout,
   MdMenu,
@@ -91,6 +92,9 @@ export default function Sidebar({ open = false, onClose, onOpen }) {
   const menus = isAdmin ? adminMenus : userMenus;
   const displayName =
     profile?.full_name || profile?.name || user?.email?.split("@")[0] || "Operator";
+  const avatarUrl = profile?.avatar_url;
+  const profilePath = isAdmin ? "/admin/profile" : "/user/profile";
+  const notificationsPath = isAdmin ? "/admin/notifications" : "/user/notifications";
 
   return (
     <>
@@ -147,12 +151,30 @@ export default function Sidebar({ open = false, onClose, onOpen }) {
         </div>
 
         <div className="operator-card" title={displayName}>
-          <div className="operator-avatar">{displayName.slice(0, 1).toUpperCase()}</div>
+          <div className="operator-avatar">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={displayName} />
+            ) : (
+              displayName.slice(0, 1).toUpperCase()
+            )}
+          </div>
           <div className="operator-details">
             <span>Signed in as</span>
             <strong>{displayName}</strong>
             <p>{isAdmin ? "Administrator" : "Employee"}</p>
           </div>
+          <button
+            className="profile-edit-btn"
+            type="button"
+            onClick={() => {
+              navigate(profilePath);
+              onClose?.();
+            }}
+            aria-label="Update profile"
+            title="Update profile"
+          >
+            <MdEdit />
+          </button>
         </div>
 
         <nav className="sidebar-nav" aria-label="Primary navigation">
@@ -168,6 +190,14 @@ export default function Sidebar({ open = false, onClose, onOpen }) {
               <span className="sidebar-link-label">{menu.label}</span>
             </NavLink>
           ))}
+          <NavLink
+            to={notificationsPath}
+            className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
+            onClick={onClose}
+          >
+            <span className="sidebar-link-icon"><MdNotificationsActive /></span>
+            <span className="sidebar-link-label">Notifications</span>
+          </NavLink>
         </nav>
 
         <div className="sidebar-system">

@@ -615,6 +615,14 @@ export const authAPI = {
     return data;
   },
 
+  async updateEmail(email) {
+    const { data, error } = await supabase.auth.updateUser({
+      email: sanitizeEmail(email),
+    });
+    if (error) throw error;
+    return data;
+  },
+
   async logout() {
     await addActivityLog({
       action: "logout",

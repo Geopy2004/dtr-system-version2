@@ -68,15 +68,34 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-const getMapUrl = (location) => {
-  if (!location) return "";
-  const delta = 0.006;
-  const left = location.lng - delta;
-  const right = location.lng + delta;
-  const top = location.lat + delta;
-  const bottom = location.lat - delta;
+const getMapTiles = (location) => {
+  if (!location) return null;
 
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${left},${bottom},${right},${top}&layer=mapnik&marker=${location.lat},${location.lng}`;
+  const zoom = 16;
+  const tileSize = 256;
+  const tileCount = 2 ** zoom;
+  const latRad = (location.lat * Math.PI) / 180;
+  const xFloat = ((location.lng + 180) / 360) * tileCount;
+  const yFloat =
+    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) *
+    tileCount;
+  const centerX = Math.floor(xFloat);
+  const centerY = Math.floor(yFloat);
+  const startX = centerX - 1;
+  const startY = centerY - 1;
+
+  return {
+    offsetX: Math.round((xFloat - startX) * tileSize),
+    offsetY: Math.round((yFloat - startY) * tileSize),
+    tiles: Array.from({ length: 9 }, (_, index) => {
+      const x = startX + (index % 3);
+      const y = startY + Math.floor(index / 3);
+      return {
+        key: `${zoom}-${x}-${y}`,
+        url: `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`,
+      };
+    }),
+  };
 };
 
 export default function UserDashboard() {
@@ -183,7 +202,7 @@ export default function UserDashboard() {
   const monthlyChart = useMemo(() => buildMonthlyChart(records), [records]);
   const todayRecord = useMemo(() => getTodayRecord(records), [records]);
   const recentRecords = useMemo(() => records.slice(0, 5), [records]);
-  const liveMapUrl = useMemo(() => getMapUrl(location), [location]);
+  const liveMap = useMemo(() => getMapTiles(location), [location]);
   const pendingLeaves = leaves.filter((leave) => leave.status === "pending").length;
 
   const metrics = [
@@ -369,13 +388,35 @@ export default function UserDashboard() {
               </div>
 
               <div className="live-map-frame">
-                {liveMapUrl ? (
-                  <iframe
-                    title="Live current location map"
-                    src={liveMapUrl}
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
+                {liveMap ? (
+                  <>
+                    <div
+                      className="live-map-tiles"
+                      style={{
+                        transform: `translate(${-liveMap.offsetX}px, ${-liveMap.offsetY}px)`,
+                      }}
+                    >
+                      {liveMap.tiles.map((tile) => (
+                        <img
+                          alt=""
+                          draggable="false"
+                          key={tile.key}
+                          src={tile.url}
+                        />
+                      ))}
+                    </div>
+                    <span className="live-map-marker" aria-hidden="true">
+                      <FiMapPin />
+                    </span>
+                    <a
+                      className="live-map-attribution"
+                      href={`https://www.openstreetmap.org/?mlat=${location.lat}&mlon=${location.lng}#map=16/${location.lat}/${location.lng}`}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      OpenStreetMap
+                    </a>
+                  </>
                 ) : (
                   <div className="live-map-empty">
                     <FiNavigation />

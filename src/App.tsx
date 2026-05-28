@@ -11,6 +11,8 @@ import Login from "./pages/auth/login";
 import Register from "./pages/auth/register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import UpdatePassword from "./pages/auth/UpdatePassword";
+import Profile from "./pages/profile/Profile";
+import Notifications from "./pages/notifications/Notifications";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/admindashboard";
@@ -69,6 +71,8 @@ export default function App() {
         <Route path="/admin/reports" element={<ReportsAnalytics />} />
         <Route path="/admin/audit" element={<AuditTrail />} />
         <Route path="/admin/settings" element={<SystemSettings />} />
+        <Route path="/admin/profile" element={<Profile />} />
+        <Route path="/admin/notifications" element={<Notifications />} />
       </Route>
 
       {/* User Routes */}
@@ -84,6 +88,8 @@ export default function App() {
         <Route path="/user/time-inout" element={<TimeInOut />} />
         <Route path="/user/logs" element={<UserLogs />} />
         <Route path="/user/leave" element={<Leave />} />
+        <Route path="/user/profile" element={<Profile />} />
+        <Route path="/user/notifications" element={<Notifications />} />
       </Route>
 
       {/* Redirect root to login */}
