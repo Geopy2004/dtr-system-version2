@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
+import Loader from "./components/common/loader";
 
 // Layouts
 import AuthLayout from "./layouts/AuthLayout";
@@ -41,7 +42,7 @@ export default function App() {
   const { loading } = useAuth();
 
   if (loading) {
-    return <p>Loading...</p>;
+    return <Loader />;
   }
 
   return (
