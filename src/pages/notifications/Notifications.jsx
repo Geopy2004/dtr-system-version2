@@ -23,7 +23,7 @@ const initialForm = {
 };
 
 export default function Notifications() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -96,12 +96,12 @@ export default function Notifications() {
   }, [loadNotifications]);
 
   const unreadCount = useMemo(
-    () => notifications.filter((item) => item.user_id && !item.read_at).length,
-    [notifications]
+    () => notifications.filter((item) => item.user_id === user?.id && !item.read_at).length,
+    [notifications, user?.id]
   );
 
   const markRead = async (notification) => {
-    if (!notification?.id || notification.read_at) return;
+    if (!notification?.id || notification.user_id !== user?.id || notification.read_at) return;
 
     try {
       await notificationAPI.markRead(notification.id);
@@ -118,7 +118,7 @@ export default function Notifications() {
   };
 
   const markAllRead = async () => {
-    const unread = notifications.filter((item) => item.user_id && !item.read_at);
+    const unread = notifications.filter((item) => item.user_id === user?.id && !item.read_at);
     if (!unread.length) return;
 
     try {
@@ -314,9 +314,10 @@ export default function Notifications() {
                       notification.type ||
                       "Notification"}
                   </h2>
-                  {notification.user_id && !notification.read_at && (
+                  {notification.user_id === user?.id && !notification.read_at && (
                     <span className="pill">Unread</span>
                   )}
+                  {!notification.user_id && <span className="pill">Announcement</span>}
                 </div>
                 <p>{notification.message || notification.description || "New update available."}</p>
                 <small>
@@ -326,7 +327,7 @@ export default function Notifications() {
                   {formatDate(notification.created_at, "MMM dd, yyyy hh:mm a")}
                 </small>
               </div>
-              {!isAdmin && notification.user_id && (
+              {!isAdmin && notification.user_id === user?.id && (
                 <button
                   className="ghost-btn"
                   type="button"

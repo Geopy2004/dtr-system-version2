@@ -199,6 +199,18 @@ const getMissingSchemaColumn = (error) => {
 const isMissingReadColumn = (error) =>
   ["date", "time_in"].includes(getMissingSchemaColumn(error));
 
+const isEmployeeAnnouncement = (notification) =>
+  ["all_employees", "employees"].includes(notification?.metadata?.audience);
+
+const getNotificationAnnouncementKey = (notification) =>
+  [
+    notification?.metadata?.created_by || "system",
+    notification?.title || "",
+    notification?.message || "",
+    notification?.type || "info",
+    notification?.created_at || "",
+  ].join("|");
+
 const runWithSchemaFallback = async (createQuery, payload) => {
   let nextPayload = { ...payload };
   const maxAttempts = Object.keys(payload).length + 1;
@@ -1464,7 +1476,7 @@ export const notificationAPI = {
   async getMyNotifications() {
     const user = await getAuthenticatedUser();
     if (!isUuid(user.id)) throw new Error("Invalid user ID.");
-    const [personalResult, globalResult] = await Promise.all([
+    const [personalResult, globalResult, allEmployeesResult, employeesResult] = await Promise.all([
       supabase
         .from("notifications")
         .select("*")
@@ -1477,12 +1489,71 @@ export const notificationAPI = {
         .is("user_id", null)
         .order("created_at", { ascending: false })
         .limit(50),
+      supabase
+        .from("notifications")
+        .select("*")
+        .contains("metadata", { audience: "all_employees" })
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("notifications")
+        .select("*")
+        .contains("metadata", { audience: "employees" })
+        .order("created_at", { ascending: false })
+        .limit(50),
     ]);
 
     if (personalResult.error) throw personalResult.error;
-    if (globalResult.error) throw globalResult.error;
+    const rows = [
+      ...(personalResult.data || []),
+      ...(globalResult.error ? [] : globalResult.data || []),
+      ...(allEmployeesResult.error ? [] : allEmployeesResult.data || []),
+      ...(employeesResult.error ? [] : employeesResult.data || []),
+    ];
+    const seen = new Set();
 
-    return [...(personalResult.data || []), ...(globalResult.data || [])]
+    const ownedAnnouncementKeys = new Set(
+      rows
+        .filter((item) => item.user_id === user.id && isEmployeeAnnouncement(item))
+        .map(getNotificationAnnouncementKey)
+    );
+
+    return rows
+      .map((item) => {
+        if (item.user_id && item.user_id !== user.id && isEmployeeAnnouncement(item)) {
+          return {
+            ...item,
+            user_id: null,
+            read_at: null,
+            metadata: {
+              ...(item.metadata || {}),
+              original_user_id: item.user_id,
+            },
+          };
+        }
+
+        return item;
+      })
+      .filter((item) => {
+        const announcementKey = isEmployeeAnnouncement(item)
+          ? getNotificationAnnouncementKey(item)
+          : null;
+
+        if (
+          announcementKey &&
+          item.user_id !== user.id &&
+          ownedAnnouncementKeys.has(announcementKey)
+        ) {
+          return false;
+        }
+
+        const key = announcementKey
+          ? `announcement:${announcementKey}`
+          : item.id || `${item.title}:${item.message}:${item.type}:${item.created_at}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
       .sort((left, right) => new Date(right.created_at) - new Date(left.created_at))
       .slice(0, 50);
   },
