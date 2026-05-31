@@ -37,6 +37,7 @@ const USER_ROLES = ["admin", "employee"];
 const LEAVE_TYPES = ["Vacation", "Sick", "Emergency", "Personal", "Bereavement"];
 const LEAVE_REVIEW_STATUSES = ["approved", "rejected", "cancelled"];
 const HOLIDAY_TYPES = ["Regular", "Special", "Company"];
+const NOTIFICATION_TYPES = ["info", "success", "warning", "urgent"];
 
 const getLocalDateString = (date = new Date()) => {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -1463,14 +1464,124 @@ export const notificationAPI = {
   async getMyNotifications() {
     const user = await getAuthenticatedUser();
     if (!isUuid(user.id)) throw new Error("Invalid user ID.");
+    const [personalResult, globalResult] = await Promise.all([
+      supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("notifications")
+        .select("*")
+        .is("user_id", null)
+        .order("created_at", { ascending: false })
+        .limit(50),
+    ]);
+
+    if (personalResult.error) throw personalResult.error;
+    if (globalResult.error) throw globalResult.error;
+
+    return [...(personalResult.data || []), ...(globalResult.data || [])]
+      .sort((left, right) => new Date(right.created_at) - new Date(left.created_at))
+      .slice(0, 50);
+  },
+
+  async getMyUnreadCount() {
+    const notifications = await notificationAPI.getMyNotifications();
+    return notifications.filter((item) => item.user_id && !item.read_at).length;
+  },
+
+  async getAllNotifications(limit = 100) {
+    const safeLimit = normalizeLimit(limit, 100, 250);
     const { data, error } = await supabase
       .from("notifications")
-      .select("*")
-      .or(`user_id.eq.${user.id},user_id.is.null`)
+      .select("*, profiles(full_name, email)")
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(safeLimit);
     if (error) throw error;
     return data || [];
+  },
+
+  async createNotification(payload = {}) {
+    const user = await getAuthenticatedUser();
+    const title = sanitizeText(payload.title, {
+      maxLength: 140,
+      allowNewlines: false,
+    });
+    const message = sanitizeText(payload.message, { maxLength: 1200 });
+    const type = assertEnum(payload.type || "info", NOTIFICATION_TYPES, "notification type");
+    const targetUserIds = Array.isArray(payload.user_ids)
+      ? [...new Set(payload.user_ids.map((id) => assertUuid(id, "recipient ID")))]
+      : [];
+    const audience = payload.audience === "all" ? "all" : "single_user";
+    if (!title) throw new Error("Notification title is required.");
+    if (!message) throw new Error("Notification message is required.");
+
+    const insertRows = async (rows) => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .insert(rows)
+        .select("*");
+      if (error) throw error;
+      return data || [];
+    };
+
+    if (audience === "all") {
+      const { data, error } = await supabase.rpc("create_employee_notification", {
+        notification_title: title,
+        notification_message: message,
+        notification_type: type,
+      });
+      if (!error) return data || [];
+
+      const isMissingRpc =
+        error.code === "PGRST202" ||
+        error.message?.toLowerCase().includes("schema cache") ||
+        error.message?.includes("create_employee_notification");
+
+      if (!isMissingRpc) throw error;
+
+      const users = await profileAPI.getAllUsers();
+      const employeeIds = users
+        .filter((item) => item.role !== "admin" && item.is_active !== false)
+        .map((item) => item.id)
+        .filter(isUuid);
+
+      if (!employeeIds.length) {
+        throw new Error("No active employee recipients found.");
+      }
+
+      return insertRows(
+        employeeIds.map((userId) => ({
+          user_id: userId,
+          title,
+          message,
+          type,
+          metadata: {
+            created_by: user.id,
+            audience: "all_employees",
+          },
+        }))
+      );
+    }
+
+    if (!targetUserIds.length) {
+      throw new Error("Choose at least one recipient.");
+    }
+
+    const rows = targetUserIds.map((userId) => ({
+      user_id: userId,
+      title,
+      message,
+      type,
+      metadata: {
+        created_by: user.id,
+        audience: "single_user",
+      },
+    }));
+
+    return insertRows(rows);
   },
 
   async markRead(id) {

@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import Loader from "./components/common/loader";
 
@@ -34,14 +35,23 @@ import MyAttendance from "./pages/users/myattendance";
 import TimeInOut from "./pages/users/timeinout";
 import UserLogs from "./pages/users/userlogs";
 import Leave from "./pages/users/leave";
+import About from "./pages/users/about";
 
 // Protected Route
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 export default function App() {
   const { loading } = useAuth();
+  const location = useLocation();
+  const [routeLoading, setRouteLoading] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+    setRouteLoading(true);
+    const timer = window.setTimeout(() => setRouteLoading(false), 280);
+    return () => window.clearTimeout(timer);
+  }, [location.pathname]);
+
+  if (loading || routeLoading) {
     return <Loader />;
   }
 
@@ -89,6 +99,7 @@ export default function App() {
         <Route path="/user/time-inout" element={<TimeInOut />} />
         <Route path="/user/logs" element={<UserLogs />} />
         <Route path="/user/leave" element={<Leave />} />
+        <Route path="/user/about" element={<About />} />
         <Route path="/user/profile" element={<Profile />} />
         <Route path="/user/notifications" element={<Notifications />} />
       </Route>

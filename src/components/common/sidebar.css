@@ -228,6 +228,22 @@
   transition: background 180ms ease, color 180ms ease, transform 180ms ease, border 180ms ease;
 }
 
+.sidebar-badge {
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  margin-left: auto;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 6px;
+  color: #ffffff;
+  background: #ef4444;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.38);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .sidebar-link-icon {
   display: grid;
   place-items: center;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
+import { notificationAPI, realtimeAPI } from "../../services/api";
 import {
   MdAccessTime,
   MdAdminPanelSettings,
@@ -9,6 +10,7 @@ import {
   MdDashboard,
   MdEdit,
   MdHistory,
+  MdInfo,
   MdLogout,
   MdMenu,
   MdNotificationsActive,
@@ -23,9 +25,10 @@ const userMenus = [
   { path: "/user/dashboard", icon: <MdDashboard />, label: "Dashboard" },
   { path: "/user/attendance", icon: <MdAccessTime />, label: "My Attendance" },
   { path: "/user/logs", icon: <MdHistory />, label: "My Logs" },
-  { path: "/user/leave", icon: <MdWorkHistory />, label: "Leave" },
+  { path: "/user/leave", icon: <MdWorkHistory />, label: "Leave Request" },
+  { path: "/user/notifications", icon: <MdNotificationsActive />, label: "Notifications" },
+  { path: "/user/about", icon: <MdInfo />, label: "About" },
 ];
-
 const adminMenus = [
   { path: "/admin/dashboard", icon: <MdDashboard />, label: "Command Center" },
   { path: "/admin/manage-users", icon: <MdPeople />, label: "Manage Users" },
@@ -33,6 +36,7 @@ const adminMenus = [
   { path: "/admin/leaves", icon: <MdWorkHistory />, label: "Leave Approvals" },
   { path: "/admin/reports", icon: <MdHistory />, label: "Reports" },
   { path: "/admin/settings", icon: <MdSettings />, label: "Settings" },
+  { path: "/admin/notifications", icon: <MdNotificationsActive />, label: "Notifications" },
 ];
 
 const sidebarVariants = {
@@ -58,6 +62,7 @@ export default function Sidebar({ open = false, onClose, onOpen }) {
   const navigate = useNavigate();
   const logoutInProgressRef = useRef(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -89,12 +94,50 @@ export default function Sidebar({ open = false, onClose, onOpen }) {
     }
   }, [isLoggingOut, logout, navigate]);
 
+  const loadUnreadNotifications = useCallback(async () => {
+    if (isAdmin || !user?.id) {
+      setUnreadNotifications(0);
+      return;
+    }
+
+    try {
+      setUnreadNotifications(await notificationAPI.getMyUnreadCount());
+    } catch {
+      setUnreadNotifications(0);
+    }
+  }, [isAdmin, user?.id]);
+
+  useEffect(() => {
+    loadUnreadNotifications();
+  }, [loadUnreadNotifications]);
+
+  useEffect(() => {
+    if (isAdmin || !user?.id) return undefined;
+
+    const refresh = () => loadUnreadNotifications();
+    let unsubscribe;
+
+    try {
+      unsubscribe = realtimeAPI.subscribeToTable("notifications", refresh);
+    } catch {
+      unsubscribe = undefined;
+    }
+
+    const interval = window.setInterval(refresh, 15000);
+    window.addEventListener("focus", refresh);
+
+    return () => {
+      unsubscribe?.();
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [isAdmin, loadUnreadNotifications, user?.id]);
+
   const menus = isAdmin ? adminMenus : userMenus;
   const displayName =
     profile?.full_name || profile?.name || user?.email?.split("@")[0] || "Operator";
   const avatarUrl = profile?.avatar_url;
   const profilePath = isAdmin ? "/admin/profile" : "/user/profile";
-  const notificationsPath = isAdmin ? "/admin/notifications" : "/user/notifications";
 
   return (
     <>
@@ -188,16 +231,15 @@ export default function Sidebar({ open = false, onClose, onOpen }) {
             >
               <span className="sidebar-link-icon">{menu.icon}</span>
               <span className="sidebar-link-label">{menu.label}</span>
+              {!isAdmin &&
+                menu.path === "/user/notifications" &&
+                unreadNotifications > 0 && (
+                  <span className="sidebar-badge" aria-label={`${unreadNotifications} unread notifications`}>
+                    {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                  </span>
+                )}
             </NavLink>
           ))}
-          <NavLink
-            to={notificationsPath}
-            className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
-            onClick={onClose}
-          >
-            <span className="sidebar-link-icon"><MdNotificationsActive /></span>
-            <span className="sidebar-link-label">Notifications</span>
-          </NavLink>
         </nav>
 
         <div className="sidebar-system">

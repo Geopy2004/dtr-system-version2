@@ -12,6 +12,15 @@
   animation: overlayFadeIn 0.35s ease-out forwards;
 }
 
+.loader-overlay.panel {
+  position: relative;
+  min-height: 260px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(9, 13, 31, 0.72);
+  z-index: 1;
+}
+
 .loader-overlay::before {
   content: "";
   position: absolute;
