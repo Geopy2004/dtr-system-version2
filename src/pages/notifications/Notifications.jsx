@@ -139,12 +139,9 @@ export default function Notifications() {
   const createNotification = async (event) => {
     event.preventDefault();
 
-    const userIds =
-      form.audience === "all"
-        ? employees.map((employee) => employee.id)
-        : [form.userId].filter(Boolean);
+    const userIds = form.audience === "single" ? [form.userId].filter(Boolean) : [];
 
-    if (form.audience !== "all" && !userIds.length) {
+    if (form.audience === "single" && !userIds.length) {
       toast.error("Choose at least one employee.");
       return;
     }

@@ -60,6 +60,7 @@ const sidebarTransition = {
 export default function Sidebar({ open = false, onClose, onOpen }) {
   const { isAdmin, logout, user, profile } = useAuth();
   const navigate = useNavigate();
+  const sidebarRef = useRef(null);
   const logoutInProgressRef = useRef(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -72,13 +73,19 @@ export default function Sidebar({ open = false, onClose, onOpen }) {
   }, [open]);
 
   useEffect(() => {
+    if (!open) return undefined;
+
     const handleKeyDown = (event) => {
       if (event.key === "Escape") onClose?.();
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [onClose, open]);
+
+  useEffect(() => {
+    if (open) sidebarRef.current?.focus();
+  }, [open]);
 
   const handleLogout = useCallback(async () => {
     if (logoutInProgressRef.current || isLoggingOut) return;
@@ -167,8 +174,10 @@ export default function Sidebar({ open = false, onClose, onOpen }) {
       </AnimatePresence>
 
       <motion.aside
+        ref={sidebarRef}
         className={`sidebar ${open ? "open" : ""}`}
         aria-hidden={!open}
+        tabIndex={-1}
         initial={false}
         animate={open ? "open" : "closed"}
         variants={sidebarVariants}
@@ -187,10 +196,10 @@ export default function Sidebar({ open = false, onClose, onOpen }) {
           <div className="brand-mark">
             <MdAdminPanelSettings />
           </div>
-            <div className="brand-copy">
-              <img src={logo} alt="One Punch-In" className="brand-logo" />
-              <p>{isAdmin ? "Enterprise Command" : "Employee Workspace"}</p>
-            </div>
+          <div className="brand-copy">
+            <img src={logo} alt="One Punch-In" className="brand-logo" />
+            <p>{isAdmin ? "Enterprise Command" : "Employee Workspace"}</p>
+          </div>
         </div>
 
         <div className="operator-card" title={displayName}>

@@ -7,13 +7,16 @@
   flex-direction: column;
   width: min(316px, calc(100vw - 28px));
   height: 100vh;
+  height: 100dvh;
   border-right: 1px solid rgba(255, 255, 255, 0.11);
-  padding: 24px 16px;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
   background:
     linear-gradient(180deg, rgba(17, 20, 45, 0.92), rgba(8, 11, 28, 0.94)),
     rgba(8, 11, 28, 0.9);
   box-shadow: 14px 0 48px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(24px);
+  outline: none;
+  overscroll-behavior: contain;
   will-change: transform, opacity;
 }
 
@@ -29,8 +32,8 @@
 
 .mobile-menu-btn {
   position: fixed;
-  top: 18px;
-  left: 18px;
+  top: max(18px, env(safe-area-inset-top));
+  left: max(18px, env(safe-area-inset-left));
   z-index: 60;
   display: grid;
   width: 48px;
@@ -62,8 +65,8 @@
 
 .sidebar-close {
   position: absolute;
-  top: 18px;
-  right: 16px;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
   display: grid;
   width: 38px;
   height: 38px;
@@ -98,12 +101,16 @@
   flex-direction: column;
   justify-content: center;
   gap: 2px;
+  min-width: 0;
 }
 
 .brand-logo {
-  height: 36px;
-  width: auto;
   display: block;
+  width: min(174px, 100%);
+  height: auto;
+  max-height: 36px;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .brand-mark {
@@ -141,10 +148,15 @@
   gap: 12px;
   align-items: center;
   position: relative;
+  flex: 0 0 auto;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 14px 48px 14px 14px;
   background: rgba(255, 255, 255, 0.065);
+}
+
+.operator-details {
+  min-width: 0;
 }
 
 .operator-avatar {
@@ -209,16 +221,19 @@
 .sidebar-nav {
   display: grid;
   gap: 7px;
+  min-height: 0;
   margin-top: 22px;
   overflow-y: auto;
   padding-right: 4px;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sidebar-link {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 46px;
+  min-height: 48px;
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 0 13px;
@@ -226,6 +241,13 @@
   font-size: 0.92rem;
   font-weight: 800;
   transition: background 180ms ease, color 180ms ease, transform 180ms ease, border 180ms ease;
+}
+
+.sidebar-link-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-badge {
@@ -246,6 +268,7 @@
 
 .sidebar-link-icon {
   display: grid;
+  flex: 0 0 auto;
   place-items: center;
 }
 
@@ -264,6 +287,7 @@
 
 .sidebar-system {
   display: grid;
+  flex: 0 0 auto;
   gap: 12px;
   margin-top: auto;
   padding-top: 18px;
@@ -302,13 +326,106 @@
 
 @media (max-width: 1120px) {
   .mobile-menu-btn {
-    top: 16px;
-    left: 16px;
+    top: max(16px, env(safe-area-inset-top));
+    left: max(16px, env(safe-area-inset-left));
     width: 46px;
     height: 46px;
   }
 
   .sidebar {
-    padding: 22px 14px;
+    width: min(334px, calc(100vw - 18px));
+    padding: max(22px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 480px) {
+  .mobile-menu-btn {
+    top: max(12px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left));
+    width: 44px;
+    height: 44px;
+  }
+
+  .sidebar {
+    width: min(92vw, 328px);
+    padding-inline: 12px;
+  }
+
+  .sidebar-close {
+    top: max(14px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    width: 40px;
+    height: 40px;
+  }
+
+  .brand-block {
+    gap: 10px;
+    padding: 2px 46px 16px 2px;
+  }
+
+  .brand-mark {
+    width: 42px;
+    height: 42px;
+  }
+
+  .brand-logo {
+    max-height: 31px;
+  }
+
+  .operator-card {
+    padding: 12px 46px 12px 12px;
+  }
+
+  .operator-avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .sidebar-nav {
+    gap: 6px;
+    margin-top: 16px;
+  }
+
+  .sidebar-link {
+    min-height: 48px;
+    padding-inline: 12px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-height: 680px) and (max-width: 1120px) {
+  .sidebar {
+    padding-block: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-bottom));
+  }
+
+  .brand-block {
+    min-height: 44px;
+    padding-bottom: 12px;
+  }
+
+  .brand-mark {
+    width: 40px;
+    height: 40px;
+  }
+
+  .brand-logo {
+    max-height: 28px;
+  }
+
+  .operator-card {
+    padding-block: 10px;
+  }
+
+  .sidebar-nav {
+    margin-top: 12px;
+  }
+
+  .sidebar-system {
+    gap: 8px;
+    padding-top: 12px;
+  }
+
+  .system-row {
+    display: none;
   }
 }

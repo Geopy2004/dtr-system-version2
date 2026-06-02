@@ -19,6 +19,9 @@ import './manageusers.css';
 
 const getUserName = (user) => user?.full_name || user?.name || 'Employee';
 const getUserInitial = (user) => getUserName(user).slice(0, 1).toUpperCase();
+const hideBrokenAvatar = (event) => {
+  event.currentTarget.style.display = 'none';
+};
 
 export default function ManageUsers() {
   const [users, setUsers] = useState([]);
@@ -285,7 +288,14 @@ export default function ManageUsers() {
                 <td>
                   <div className="user-info">
 
-                    <div className="avatar">
+                    <div className="avatar" aria-label={getUserName(user)}>
+                      {user?.avatar_url && (
+                        <img
+                          src={user.avatar_url}
+                          alt={getUserName(user)}
+                          onError={hideBrokenAvatar}
+                        />
+                      )}
                       {getUserInitial(user)}
                     </div>
 
