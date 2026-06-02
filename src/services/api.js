@@ -1666,6 +1666,60 @@ export const notificationAPI = {
     if (error) throw error;
     return data;
   },
+
+  async updateNotification(id, payload = {}) {
+    const safeId = assertUuid(id, "notification ID");
+    const updates = pickDefined({
+      title:
+        "title" in payload
+          ? sanitizeText(payload.title, { maxLength: 140, allowNewlines: false })
+          : undefined,
+      message:
+        "message" in payload
+          ? sanitizeText(payload.message, { maxLength: 1200 })
+          : undefined,
+      type:
+        "type" in payload
+          ? assertEnum(payload.type || "info", NOTIFICATION_TYPES, "notification type")
+          : undefined,
+    });
+
+    if ("title" in updates && !updates.title) {
+      throw new Error("Notification title is required.");
+    }
+    if ("message" in updates && !updates.message) {
+      throw new Error("Notification message is required.");
+    }
+    if (!Object.keys(updates).length) {
+      throw new Error("No valid notification updates.");
+    }
+
+    const data = await runWithSchemaFallback(
+      (nextUpdates) =>
+        supabase
+          .from("notifications")
+          .update(nextUpdates)
+          .eq("id", safeId)
+          .select("*")
+          .single(),
+      {
+        ...updates,
+        updated_at: new Date().toISOString(),
+      }
+    );
+
+    return data;
+  },
+
+  async deleteNotification(id) {
+    const safeId = assertUuid(id, "notification ID");
+    const { error } = await supabase
+      .from("notifications")
+      .delete()
+      .eq("id", safeId);
+    if (error) throw error;
+    return true;
+  },
 };
 
 export const adminAPI = {

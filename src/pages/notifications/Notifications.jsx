@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
   MdCheckCircle,
+  MdClose,
+  MdDelete,
+  MdEdit,
   MdNotificationAdd,
   MdNotificationsActive,
   MdOutlineNotificationsNone,
@@ -28,6 +31,9 @@ export default function Notifications() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [editingNotification, setEditingNotification] = useState(null);
+  const [notificationToDelete, setNotificationToDelete] = useState(null);
   const [form, setForm] = useState(initialForm);
 
   const loadNotifications = useCallback(async ({ silent = false } = {}) => {
@@ -95,6 +101,19 @@ export default function Notifications() {
     };
   }, [loadNotifications]);
 
+  useEffect(() => {
+    if (!notificationToDelete) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !deletingId) {
+        setNotificationToDelete(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [deletingId, notificationToDelete]);
+
   const unreadCount = useMemo(
     () => notifications.filter((item) => item.user_id === user?.id && !item.read_at).length,
     [notifications, user?.id]
@@ -136,29 +155,43 @@ export default function Notifications() {
     }
   };
 
-  const createNotification = async (event) => {
+  const saveNotification = async (event) => {
     event.preventDefault();
 
     const userIds = form.audience === "single" ? [form.userId].filter(Boolean) : [];
 
-    if (form.audience === "single" && !userIds.length) {
+    if (!editingNotification && form.audience === "single" && !userIds.length) {
       toast.error("Choose at least one employee.");
       return;
     }
 
     try {
       setSending(true);
-      const created = await notificationAPI.createNotification({
-        title: form.title,
-        message: form.message,
-        type: form.type,
-        audience: form.audience,
-        user_ids: userIds,
-      });
+      let created = [];
+
+      if (editingNotification) {
+        await notificationAPI.updateNotification(editingNotification.id, {
+          title: form.title,
+          message: form.message,
+          type: form.type,
+        });
+        setEditingNotification(null);
+      } else {
+        created = await notificationAPI.createNotification({
+          title: form.title,
+          message: form.message,
+          type: form.type,
+          audience: form.audience,
+          user_ids: userIds,
+        });
+      }
+
       setForm(initialForm);
       await loadNotifications();
       toast.success(
-        form.audience === "all"
+        editingNotification
+          ? "Notification updated."
+          : form.audience === "all"
           ? "Notification posted for all employees."
           : created.length > 1
           ? `Notification sent to ${created.length} employees.`
@@ -168,6 +201,44 @@ export default function Notifications() {
       toast.error(error?.message || "Unable to send notification.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const beginEdit = (notification) => {
+    setEditingNotification(notification);
+    setForm({
+      title: notification.title || "",
+      message: notification.message || notification.description || "",
+      type: notification.type || "info",
+      audience: notification.user_id ? "single" : "all",
+      userId: notification.user_id || "",
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingNotification(null);
+    setForm(initialForm);
+  };
+
+  const requestDeleteNotification = (notification) => {
+    setNotificationToDelete(notification);
+  };
+
+  const deleteNotification = async () => {
+    if (!notificationToDelete?.id) return;
+
+    const notificationId = notificationToDelete.id;
+    try {
+      setDeletingId(notificationId);
+      await notificationAPI.deleteNotification(notificationId);
+      setNotifications((items) => items.filter((item) => item.id !== notificationId));
+      if (editingNotification?.id === notificationId) cancelEdit();
+      setNotificationToDelete(null);
+      toast.success("Notification deleted.");
+    } catch (error) {
+      toast.error(error?.message || "Unable to delete notification.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -213,12 +284,16 @@ export default function Notifications() {
             <div className="notification-compose-heading">
               <MdNotificationAdd />
               <div>
-                <h2>Create notification</h2>
-                <p>Send an announcement to all employees or one selected user.</p>
+                <h2>{editingNotification ? "Edit notification" : "Create notification"}</h2>
+                <p>
+                  {editingNotification
+                    ? "Update the selected alert title, type, or message."
+                    : "Send an announcement to all employees or one selected user."}
+                </p>
               </div>
             </div>
 
-            <form className="notification-form" onSubmit={createNotification}>
+            <form className="notification-form" onSubmit={saveNotification}>
               <label className="field-control">
                 <span>Title</span>
                 <input
@@ -246,7 +321,7 @@ export default function Notifications() {
                 <select
                   value={form.audience}
                   onChange={updateForm("audience")}
-                  disabled={sending}
+                  disabled={sending || Boolean(editingNotification)}
                 >
                   <option value="all">All employees</option>
                   <option value="single">Specific employee</option>
@@ -260,7 +335,7 @@ export default function Notifications() {
                     value={form.userId}
                     onChange={updateForm("userId")}
                     required
-                    disabled={sending}
+                    disabled={sending || Boolean(editingNotification)}
                   >
                     <option value="">Select employee</option>
                     {employees.map((employee) => (
@@ -286,8 +361,25 @@ export default function Notifications() {
 
               <button className="primary-btn notification-send-btn" type="submit" disabled={sending}>
                 <MdSend />
-                {sending ? "Sending..." : "Send notification"}
+                {sending
+                  ? editingNotification
+                    ? "Saving..."
+                    : "Sending..."
+                  : editingNotification
+                  ? "Save changes"
+                  : "Send notification"}
               </button>
+              {editingNotification && (
+                <button
+                  className="ghost-btn notification-cancel-btn"
+                  type="button"
+                  onClick={cancelEdit}
+                  disabled={sending}
+                >
+                  <MdClose />
+                  Cancel
+                </button>
+              )}
             </form>
           </section>
         )}
@@ -324,6 +416,28 @@ export default function Notifications() {
                   {formatDate(notification.created_at, "MMM dd, yyyy hh:mm a")}
                 </small>
               </div>
+              {isAdmin && (
+                <div className="notification-actions">
+                  <button
+                    className="ghost-btn"
+                    type="button"
+                    onClick={() => beginEdit(notification)}
+                    disabled={sending || deletingId === notification.id}
+                  >
+                    <MdEdit />
+                    Edit
+                  </button>
+                  <button
+                    className="ghost-btn danger-btn"
+                    type="button"
+                    onClick={() => requestDeleteNotification(notification)}
+                    disabled={sending || deletingId === notification.id}
+                  >
+                    <MdDelete />
+                    {deletingId === notification.id ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
+              )}
               {!isAdmin && notification.user_id === user?.id && (
                 <button
                   className="ghost-btn"
@@ -345,6 +459,74 @@ export default function Notifications() {
             </div>
           )}
         </section>
+
+        {notificationToDelete && (
+          <div
+            className="modal-backdrop notification-delete-backdrop"
+            role="presentation"
+            onClick={() => {
+              if (!deletingId) setNotificationToDelete(null);
+            }}
+          >
+            <section
+              className="modal-card notification-delete-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-notification-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="notification-delete-icon">
+                <MdDelete />
+              </div>
+              <div className="notification-delete-copy">
+                <span className="eyebrow">Delete notification</span>
+                <h2 id="delete-notification-title">Remove this alert?</h2>
+                <p>
+                  This deletes the notification from Supabase and removes it from
+                  recipient notification lists.
+                </p>
+              </div>
+
+              <div className="notification-delete-preview">
+                <strong>{notificationToDelete.title || "Notification"}</strong>
+                <p>
+                  {notificationToDelete.message ||
+                    notificationToDelete.description ||
+                    "No message content."}
+                </p>
+                <small>
+                  {notificationToDelete.profiles
+                    ? `To ${
+                        notificationToDelete.profiles.full_name ||
+                        notificationToDelete.profiles.email
+                      }`
+                    : "Announcement"}
+                </small>
+              </div>
+
+              <div className="notification-delete-actions">
+                <button
+                  className="ghost-btn"
+                  type="button"
+                  onClick={() => setNotificationToDelete(null)}
+                  disabled={Boolean(deletingId)}
+                >
+                  <MdClose />
+                  Keep notification
+                </button>
+                <button
+                  className="danger-btn"
+                  type="button"
+                  onClick={deleteNotification}
+                  disabled={Boolean(deletingId)}
+                >
+                  <MdDelete />
+                  {deletingId ? "Deleting..." : "Delete permanently"}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
       </div>
     </AppShell>
   );

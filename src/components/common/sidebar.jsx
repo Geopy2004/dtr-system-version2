@@ -30,13 +30,13 @@ const userMenus = [
   { path: "/user/about", icon: <MdInfo />, label: "About" },
 ];
 const adminMenus = [
-  { path: "/admin/dashboard", icon: <MdDashboard />, label: "Command Center" },
-  { path: "/admin/manage-users", icon: <MdPeople />, label: "Manage Users" },
   { path: "/admin/attendance", icon: <MdAccessTime />, label: "Attendance Records" },
+  { path: "/admin/dashboard", icon: <MdDashboard />, label: "Command Center" },
   { path: "/admin/leaves", icon: <MdWorkHistory />, label: "Leave Approvals" },
+  { path: "/admin/manage-users", icon: <MdPeople />, label: "Manage Users" },
+  { path: "/admin/notifications", icon: <MdNotificationsActive />, label: "Notifications" },
   { path: "/admin/reports", icon: <MdHistory />, label: "Reports" },
   { path: "/admin/settings", icon: <MdSettings />, label: "Settings" },
-  { path: "/admin/notifications", icon: <MdNotificationsActive />, label: "Notifications" },
 ];
 
 const sidebarVariants = {
