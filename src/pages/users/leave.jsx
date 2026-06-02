@@ -7,6 +7,7 @@ import {
   FiClock,
   FiFile,
   FiFileText,
+  FiInfo,
   FiUpload,
   FiX,
 } from "react-icons/fi";
@@ -62,6 +63,16 @@ export default function LeavePortal() {
       .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))[0];
     return { balance: Math.max(0, 15 - approved - pending), approved, pending, rejected, upcoming };
   }, [leaves]);
+
+  const requestPreview = useMemo(() => {
+    if (!form.start_date || !form.end_date) {
+      return "Choose dates to preview your request.";
+    }
+
+    return `${form.leave_type} leave, ${formatDate(form.start_date)} to ${formatDate(
+      form.end_date
+    )}`;
+  }, [form.end_date, form.leave_type, form.start_date]);
 
   const set = (key) => (event) => {
     setForm((prev) => ({ ...prev, [key]: event.target.value }));
@@ -155,6 +166,14 @@ export default function LeavePortal() {
             </div>
 
             <div className="leave-form-scroll">
+              <div className="leave-request-preview">
+                <FiInfo />
+                <div>
+                  <span>Request preview</span>
+                  <strong>{requestPreview}</strong>
+                </div>
+              </div>
+
               <div className="leave-form-section">
                 <label className="field-control">
                   <span>Leave type</span>
@@ -162,8 +181,8 @@ export default function LeavePortal() {
                     <option>Vacation</option>
                     <option>Sick</option>
                     <option>Emergency</option>
+                    <option>Personal</option>
                     <option>Bereavement</option>
-                    <option>Unpaid</option>
                   </select>
                 </label>
 
@@ -197,7 +216,7 @@ export default function LeavePortal() {
               <div className="leave-upload-row">
                 <label className="upload-control">
                   <FiUpload />
-                  <span>{file ? file.name : "Supporting document"}</span>
+                  <span>{file ? file.name : "Attach supporting document"}</span>
                   <input type="file" onChange={(event) => setFile(event.target.files?.[0] || null)} />
                 </label>
                 {file && (
@@ -265,6 +284,27 @@ export default function LeavePortal() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            <div className="leave-history-list">
+              {leaves.map((leave) => (
+                <article className="leave-history-item" key={leave.id}>
+                  <div className="leave-history-main">
+                    <div>
+                      <strong>{leave.leave_type}</strong>
+                      <span>{formatDate(leave.start_date)} to {formatDate(leave.end_date)}</span>
+                    </div>
+                    <span className={`badge ${leave.status}`}>{getStatusLabel(leave.status)}</span>
+                  </div>
+                  {leave.reason && <p>{leave.reason}</p>}
+                  <small>{Number(leave.total_days || 0).toLocaleString()} days requested</small>
+                </article>
+              ))}
+              {!leaves.length && (
+                <div className="leave-history-empty">
+                  {loading ? "Loading leave requests..." : "No leave requests found."}
+                </div>
+              )}
             </div>
           </div>
         </section>

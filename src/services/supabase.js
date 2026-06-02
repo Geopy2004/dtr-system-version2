@@ -2,6 +2,15 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const exposedServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("Missing Supabase browser environment variables.");
+}
+
+if (exposedServiceRoleKey) {
+  throw new Error("Do not expose SUPABASE_SERVICE_ROLE_KEY with a VITE_ prefix.");
+}
 
 const clearPersistentAuthStorage = () => {
   if (typeof window === "undefined") return;
