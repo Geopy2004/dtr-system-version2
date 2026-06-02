@@ -17,6 +17,7 @@ import {
   FiSearch,
   FiSettings,
   FiShield,
+  FiTrash2,
   FiUpload,
   FiUsers,
   FiX,
@@ -1129,6 +1130,10 @@ export function AuditTrail() {
 export function SystemSettings() {
   const [holidays, setHolidays] = useState([]);
   const [holiday, setHoliday] = useState({ name: "", date: "", type: "Regular" });
+  const [editingHoliday, setEditingHoliday] = useState(null);
+  const [deletingHoliday, setDeletingHoliday] = useState(null);
+  const [savingHoliday, setSavingHoliday] = useState(false);
+  const [deletingHolidayId, setDeletingHolidayId] = useState(null);
 
   const loadHolidays = useCallback(async () => {
     try {
@@ -1144,53 +1149,239 @@ export function SystemSettings() {
     return () => window.clearTimeout(handle);
   }, [loadHolidays]);
 
+  const holidayStats = useMemo(() => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    const upcoming = holidays.filter((item) => item.date >= today);
+    const nextHoliday = [...upcoming].sort((left, right) => left.date.localeCompare(right.date))[0];
+    return {
+      upcoming: upcoming.length,
+      regular: holidays.filter((item) => item.type === "Regular").length,
+      special: holidays.filter((item) => item.type === "Special").length,
+      company: holidays.filter((item) => item.type === "Company").length,
+      nextHoliday,
+    };
+  }, [holidays]);
+
+  const resetHolidayForm = () => {
+    setHoliday({ name: "", date: "", type: "Regular" });
+    setEditingHoliday(null);
+  };
+
+  const editHoliday = (item) => {
+    setEditingHoliday(item);
+    setHoliday({
+      id: item.id,
+      name: item.name || "",
+      date: item.date || "",
+      type: item.type || "Regular",
+    });
+  };
+
   const saveHoliday = async (event) => {
     event.preventDefault();
+    if (!holiday.name.trim() || !holiday.date) {
+      toast.error("Holiday name and date are required.");
+      return;
+    }
+
     try {
+      setSavingHoliday(true);
       await adminAPI.saveHoliday(holiday);
-      toast.success("Holiday saved.");
-      setHoliday({ name: "", date: "", type: "Regular" });
+      toast.success(editingHoliday ? "Holiday updated." : "Holiday saved.");
+      resetHolidayForm();
       await loadHolidays();
     } catch (error) {
       toast.error(error?.message || "Unable to save holiday.");
+    } finally {
+      setSavingHoliday(false);
+    }
+  };
+
+  const deleteHoliday = async () => {
+    if (!deletingHoliday?.id) return;
+
+    try {
+      setDeletingHolidayId(deletingHoliday.id);
+      await adminAPI.deleteHoliday(deletingHoliday.id);
+      toast.success("Holiday deleted.");
+      if (editingHoliday?.id === deletingHoliday.id) resetHolidayForm();
+      setDeletingHoliday(null);
+      await loadHolidays();
+    } catch (error) {
+      toast.error(error?.message || "Unable to delete holiday.");
+    } finally {
+      setDeletingHolidayId(null);
     }
   };
 
   return (
     <AppShell>
-      <div className="page page-stack">
+      <div className="page page-stack settings-page">
         <header className="page-header">
           <div>
             <span className="eyebrow">System</span>
             <h1 className="page-title">Settings</h1>
-            <p className="page-subtitle">{holidays.length} holidays</p>
+            <p className="page-subtitle">
+              {holidayStats.upcoming} upcoming holidays, {holidays.length} total records
+            </p>
           </div>
         </header>
-        <section className="split-grid">
-          <form className="glass-card form-grid" onSubmit={saveHoliday}>
-            <div className="card-title-row"><h2>Holiday</h2><FiSettings /></div>
-            <label className="field-control"><span>Name</span><input value={holiday.name} onChange={(event) => setHoliday((prev) => ({ ...prev, name: event.target.value }))} /></label>
-            <label className="field-control"><span>Date</span><input type="date" value={holiday.date} onChange={(event) => setHoliday((prev) => ({ ...prev, date: event.target.value }))} /></label>
-            <label className="field-control"><span>Type</span><select value={holiday.type} onChange={(event) => setHoliday((prev) => ({ ...prev, type: event.target.value }))}><option>Regular</option><option>Special</option><option>Company</option></select></label>
-            <button className="primary-btn" type="submit"><FiSave /> Save</button>
+
+        <section className="settings-summary-grid">
+          <article className="metric-card">
+            <div className="metric-icon"><FiCalendar /></div>
+            <div className="metric-value">{holidayStats.upcoming}</div>
+            <div className="metric-label">Upcoming</div>
+          </article>
+          <article className="metric-card">
+            <div className="metric-icon"><FiShield /></div>
+            <div className="metric-value">{holidayStats.regular}</div>
+            <div className="metric-label">Regular</div>
+          </article>
+          <article className="metric-card">
+            <div className="metric-icon"><FiSettings /></div>
+            <div className="metric-value">{holidayStats.company}</div>
+            <div className="metric-label">Company</div>
+          </article>
+        </section>
+
+        <section className="split-grid settings-holiday-grid">
+          <form className="glass-card form-grid holiday-form-card" onSubmit={saveHoliday}>
+            <div className="card-title-row">
+              <div>
+                <span className="eyebrow">Calendar</span>
+                <h2>{editingHoliday ? "Edit holiday" : "Add holiday"}</h2>
+              </div>
+              {editingHoliday ? (
+                <button className="icon-btn" type="button" onClick={resetHolidayForm} aria-label="Cancel holiday edit">
+                  <FiX />
+                </button>
+              ) : (
+                <FiSettings />
+              )}
+            </div>
+            <label className="field-control">
+              <span>Name</span>
+              <input
+                value={holiday.name}
+                onChange={(event) => setHoliday((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="Example: Founding Day"
+                maxLength={120}
+                required
+              />
+            </label>
+            <div className="form-two">
+              <label className="field-control">
+                <span>Date</span>
+                <input
+                  type="date"
+                  value={holiday.date}
+                  onChange={(event) => setHoliday((prev) => ({ ...prev, date: event.target.value }))}
+                  required
+                />
+              </label>
+              <label className="field-control">
+                <span>Type</span>
+                <select value={holiday.type} onChange={(event) => setHoliday((prev) => ({ ...prev, type: event.target.value }))}>
+                  <option>Regular</option>
+                  <option>Special</option>
+                  <option>Company</option>
+                </select>
+              </label>
+            </div>
+            <div className="holiday-form-preview">
+              <FiCalendar />
+              <div>
+                <span>{holiday.type || "Regular"} holiday</span>
+                <strong>{holiday.date ? formatDate(holiday.date) : "Select a holiday date"}</strong>
+              </div>
+            </div>
+            <div className="holiday-form-actions">
+              {editingHoliday && (
+                <button className="ghost-btn" type="button" onClick={resetHolidayForm} disabled={savingHoliday}>
+                  <FiX />
+                  Cancel
+                </button>
+              )}
+              <button className="primary-btn" type="submit" disabled={savingHoliday}>
+                <FiSave />
+                {savingHoliday ? "Saving..." : editingHoliday ? "Save changes" : "Add holiday"}
+              </button>
+            </div>
           </form>
-          <div className="table-card">
+
+          <div className="table-card holiday-table-card">
+            <div className="card-title-row">
+              <div>
+                <span className="eyebrow">Holiday Table</span>
+                <h2>Calendar records</h2>
+              </div>
+              <span className="pill">
+                {holidayStats.nextHoliday
+                  ? `Next: ${formatDate(holidayStats.nextHoliday.date)}`
+                  : "No upcoming holidays"}
+              </span>
+            </div>
             <div className="data-table-wrap">
-              <table className="data-table">
-                <thead><tr><th>Name</th><th>Date</th><th>Type</th></tr></thead>
+              <table className="data-table holiday-table">
+                <thead><tr><th>Name</th><th>Date</th><th>Type</th><th>Actions</th></tr></thead>
                 <tbody>
                   {holidays.map((item) => (
                     <tr key={item.id || item.name}>
-                      <td>{item.name}</td>
+                      <td><strong>{item.name}</strong></td>
                       <td>{formatDate(item.date)}</td>
-                      <td>{item.type}</td>
+                      <td><span className={`badge ${String(item.type || "").toLowerCase()}`}>{item.type}</span></td>
+                      <td>
+                        <div className="row-actions">
+                          <button className="icon-btn" type="button" onClick={() => editHoliday(item)} aria-label={`Edit ${item.name}`}>
+                            <FiEdit3 />
+                          </button>
+                          <button className="icon-btn danger-icon-btn" type="button" onClick={() => setDeletingHoliday(item)} aria-label={`Delete ${item.name}`}>
+                            <FiTrash2 />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
+                  {!holidays.length && (
+                    <tr>
+                      <td colSpan="4" className="empty-cell">No holidays found.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         </section>
+
+        {deletingHoliday && (
+          <div className="modal-backdrop" role="presentation" onClick={() => !deletingHolidayId && setDeletingHoliday(null)}>
+            <section className="modal-card holiday-delete-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+              <div className="holiday-delete-icon"><FiTrash2 /></div>
+              <div>
+                <span className="eyebrow">Delete holiday</span>
+                <h2>Remove {deletingHoliday.name}?</h2>
+                <p>
+                  This removes the holiday from the system calendar. Attendance and schedule views will no longer treat this date as a saved holiday.
+                </p>
+              </div>
+              <div className="holiday-delete-preview">
+                <strong>{formatDate(deletingHoliday.date)}</strong>
+                <span>{deletingHoliday.type} holiday</span>
+              </div>
+              <div className="holiday-delete-actions">
+                <button className="ghost-btn" type="button" onClick={() => setDeletingHoliday(null)} disabled={Boolean(deletingHolidayId)}>
+                  <FiX />
+                  Keep holiday
+                </button>
+                <button className="danger-btn" type="button" onClick={deleteHoliday} disabled={Boolean(deletingHolidayId)}>
+                  <FiTrash2 />
+                  {deletingHolidayId ? "Deleting..." : "Delete holiday"}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
       </div>
     </AppShell>
   );

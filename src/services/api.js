@@ -1822,6 +1822,16 @@ export const adminAPI = {
     if (error) throw error;
     return data;
   },
+
+  async deleteHoliday(id) {
+    const safeId = assertUuid(id, "holiday ID");
+    const { error } = await supabase
+      .from("holidays")
+      .delete()
+      .eq("id", safeId);
+    if (error) throw error;
+    return true;
+  },
 };
 
 export const realtimeAPI = {
