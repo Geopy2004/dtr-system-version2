@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCached, invalidateCache, invalidateMany, setCached } from "../utils/clientCache";
 import {
   assertAllowedFile,
   assertEnum,
@@ -38,6 +39,23 @@ const LEAVE_TYPES = ["Vacation", "Sick", "Emergency", "Personal", "Bereavement"]
 const LEAVE_REVIEW_STATUSES = ["approved", "rejected", "cancelled"];
 const HOLIDAY_TYPES = ["Regular", "Special", "Company"];
 const NOTIFICATION_TYPES = ["info", "success", "warning", "urgent"];
+
+const CACHE_TTL = {
+  short: 30_000,
+  medium: 90_000,
+  long: 5 * 60_000,
+};
+
+const cacheKey = (...parts) => parts.map((part) => String(part ?? "none")).join(":");
+
+const invalidateAttendanceCache = () => invalidateCache("attendance");
+const invalidateUserCache = () => invalidateMany(["profile", "users", "admin-dashboard"]);
+const invalidateLeaveCache = () => invalidateMany(["leaves", "admin-dashboard"]);
+const invalidateOrgCache = () => invalidateMany(["departments", "shifts", "schedules", "users", "admin-dashboard"]);
+const updateTodayAttendanceCache = (userId, attendance) => {
+  invalidateAttendanceCache();
+  setCached(cacheKey("attendance", "today", userId), normalizeAttendanceRecord(attendance), CACHE_TTL.short);
+};
 
 const getLocalDateString = (date = new Date()) => {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -661,6 +679,7 @@ export const authAPI = {
 
 export const profileAPI = {
   async getProfile(userId) {
+    return getCached(cacheKey("profile", userId), async () => {
     const related = await supabase
       .from("profiles")
       .select("*, departments(name, code), shifts(name, start_time, end_time)")
@@ -679,6 +698,7 @@ export const profileAPI = {
     if (!error) return data;
     if (isMissingTable(error, "profiles")) return null;
     throw error;
+    }, CACHE_TTL.medium);
   },
 
   async ensureProfile(user) {
@@ -768,10 +788,13 @@ export const profileAPI = {
       .single();
 
     if (error) throw error;
+    invalidateUserCache();
+    setCached(cacheKey("profile", cleanUserId), data, CACHE_TTL.medium);
     return data;
   },
 
   async getAllUsers() {
+    return getCached("users:all", async () => {
     const related = await supabase
       .from("profiles")
       .select("*, departments(name, code), shifts(name, start_time, end_time)")
@@ -788,6 +811,7 @@ export const profileAPI = {
     if (!error) return data || [];
     if (isMissingTable(error, "profiles")) return [];
     throw error;
+    }, CACHE_TTL.medium);
   },
 
   async uploadAvatar(file, userId) {
@@ -969,6 +993,7 @@ export const attendanceAPI = {
       metadata: { attendance_id: attendance.id },
     });
 
+    updateTodayAttendanceCache(user.id, attendance);
     return attendance;
   },
 
@@ -1004,6 +1029,7 @@ export const attendanceAPI = {
       eventTime: now.toISOString(),
     });
 
+    updateTodayAttendanceCache(user.id, attendance);
     return attendance;
   },
 
@@ -1040,6 +1066,7 @@ export const attendanceAPI = {
       eventTime: now.toISOString(),
     });
 
+    updateTodayAttendanceCache(user.id, attendance);
     return attendance;
   },
 
@@ -1095,6 +1122,7 @@ export const attendanceAPI = {
       metadata: { attendance_id: attendance.id },
     });
 
+    updateTodayAttendanceCache(user.id, attendance);
     return attendance;
   },
 
@@ -1104,6 +1132,7 @@ export const attendanceAPI = {
 
   async getTodayRecord() {
     const user = await getAuthenticatedUser();
+    return getCached(cacheKey("attendance", "today", user.id), async () => {
     const today = getLocalDateString();
 
     const openRecord = await getOpenAttendanceRecord(user.id);
@@ -1136,12 +1165,14 @@ export const attendanceAPI = {
         )
       )[0] || null
     );
+    }, CACHE_TTL.short);
   },
 
   async getRecords(startDate, endDate) {
     const user = await getAuthenticatedUser();
     const safeStartDate = assertIsoDate(startDate, "start date");
     const safeEndDate = assertIsoDate(endDate, "end date");
+    return getCached(cacheKey("attendance", "mine", user.id, safeStartDate, safeEndDate), async () => {
 
     const { data, error } = await supabase
       .from(ATTENDANCE_TABLE)
@@ -1169,11 +1200,13 @@ export const attendanceAPI = {
         safeEndDate
       )
     );
+    }, CACHE_TTL.medium);
   },
 
   async getAllRecords(startDate, endDate) {
     const safeStartDate = assertOptionalIsoDate(startDate, "start date");
     const safeEndDate = assertOptionalIsoDate(endDate, "end date");
+    return getCached(cacheKey("attendance", "all", safeStartDate, safeEndDate), async () => {
     let query = supabase
       .from(ATTENDANCE_TABLE)
       .select("*, profiles:profiles!attendance_user_id_fkey(full_name, email, department, department_id, position)")
@@ -1202,6 +1235,7 @@ export const attendanceAPI = {
         safeEndDate
       )
     );
+    }, CACHE_TTL.medium);
   },
 
   async getMyAttendance(params = {}) {
@@ -1210,6 +1244,7 @@ export const attendanceAPI = {
     const safeStartDate = assertOptionalIsoDate(startDate, "start date");
     const safeEndDate = assertOptionalIsoDate(endDate, "end date");
     const safeLimit = limit ? normalizeLimit(limit, 100, 250) : null;
+    return getCached(cacheKey("attendance", "summary", user.id, safeStartDate, safeEndDate, safeLimit), async () => {
 
     let query = supabase
       .from(ATTENDANCE_TABLE)
@@ -1257,17 +1292,20 @@ export const attendanceAPI = {
       attendance: records,
       stats: getAttendanceStats(records),
     };
+    }, CACHE_TTL.medium);
   },
 };
 
 export const departmentAPI = {
   async getDepartments() {
+    return getCached("departments:all", async () => {
     const { data, error } = await supabase
       .from("departments")
       .select("*, manager:profiles!departments_manager_id_fkey(full_name, email)")
       .order("name", { ascending: true });
     if (error) throw error;
     return data || [];
+    }, CACHE_TTL.long);
   },
 
   async saveDepartment(payload) {
@@ -1277,18 +1315,21 @@ export const departmentAPI = {
       : supabase.from("departments").insert(safePayload);
     const { data, error } = await query.select("*").single();
     if (error) throw error;
+    invalidateOrgCache();
     return data;
   },
 };
 
 export const shiftAPI = {
   async getShifts() {
+    return getCached("shifts:all", async () => {
     const { data, error } = await supabase
       .from("shifts")
       .select("*")
       .order("start_time", { ascending: true });
     if (error) throw error;
     return data || [];
+    }, CACHE_TTL.long);
   },
 
   async saveShift(payload) {
@@ -1298,16 +1339,19 @@ export const shiftAPI = {
       : supabase.from("shifts").insert(safePayload);
     const { data, error } = await query.select("*").single();
     if (error) throw error;
+    invalidateOrgCache();
     return data;
   },
 
   async getSchedules() {
+    return getCached("schedules:all", async () => {
     const { data, error } = await supabase
       .from("schedules")
       .select("*, profiles(full_name, department), departments(name, code), shifts(name, start_time, end_time)")
       .order("valid_from", { ascending: false });
     if (error) throw error;
     return data || [];
+    }, CACHE_TTL.medium);
   },
 
   async saveSchedule(payload) {
@@ -1317,6 +1361,7 @@ export const shiftAPI = {
       : supabase.from("schedules").insert(safePayload);
     const { data, error } = await query.select("*").single();
     if (error) throw error;
+    invalidateOrgCache();
     return data;
   },
 };
@@ -1376,11 +1421,13 @@ export const leaveAPI = {
       description: `Submitted ${leaveType} leave request`,
       metadata: { leave_request_id: data.id },
     });
+    invalidateLeaveCache();
     return data;
   },
 
   async getMyLeaves() {
     const user = await getAuthenticatedUser();
+    return getCached(cacheKey("leaves", "mine", user.id), async () => {
     const { data, error } = await supabase
       .from("leave_requests")
       .select("*")
@@ -1388,15 +1435,18 @@ export const leaveAPI = {
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data || [];
+    }, CACHE_TTL.medium);
   },
 
   async getAllLeaves() {
+    return getCached("leaves:all", async () => {
     const { data, error } = await supabase
       .from("leave_requests")
       .select("*, profiles:profiles!leave_requests_user_id_fkey(full_name, email, department)")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data || [];
+    }, CACHE_TTL.medium);
   },
 
   async reviewLeave(id, status, review_notes = "") {
@@ -1416,6 +1466,7 @@ export const leaveAPI = {
       .select("*")
       .single();
     if (error) throw error;
+    invalidateLeaveCache();
     return data;
   },
 };
@@ -1425,6 +1476,7 @@ export const logAPI = {
     const user = await getAuthenticatedUser();
     if (!isUuid(user.id)) throw new Error("Invalid user ID.");
     const safeLimit = normalizeLimit(limit, 100, 250);
+    return getCached(cacheKey("logs", "mine", user.id, safeLimit), async () => {
     const [activityResult, attendanceResult] = await Promise.all([
       supabase
         .from("activity_logs")
@@ -1458,10 +1510,12 @@ export const logAPI = {
         timestamp: item.event_time,
       })),
     ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    }, CACHE_TTL.short);
   },
 
   async getAuditTrail(limit = 250) {
     const safeLimit = normalizeLimit(limit, 250, 500);
+    return getCached(cacheKey("logs", "audit", safeLimit), async () => {
     const { data, error } = await supabase
       .from("activity_logs")
       .select("*, actor:profiles!activity_logs_actor_id_fkey(full_name, email)")
@@ -1469,6 +1523,7 @@ export const logAPI = {
       .limit(safeLimit);
     if (error) throw error;
     return data || [];
+    }, CACHE_TTL.short);
   },
 };
 
@@ -1476,6 +1531,7 @@ export const notificationAPI = {
   async getMyNotifications() {
     const user = await getAuthenticatedUser();
     if (!isUuid(user.id)) throw new Error("Invalid user ID.");
+    return getCached(cacheKey("notifications", "mine", user.id), async () => {
     const [personalResult, globalResult, allEmployeesResult, employeesResult] = await Promise.all([
       supabase
         .from("notifications")
@@ -1556,6 +1612,7 @@ export const notificationAPI = {
       })
       .sort((left, right) => new Date(right.created_at) - new Date(left.created_at))
       .slice(0, 50);
+    }, CACHE_TTL.short);
   },
 
   async getMyUnreadCount() {
@@ -1565,6 +1622,7 @@ export const notificationAPI = {
 
   async getAllNotifications(limit = 100) {
     const safeLimit = normalizeLimit(limit, 100, 250);
+    return getCached(cacheKey("notifications", "all", safeLimit), async () => {
     const { data, error } = await supabase
       .from("notifications")
       .select("*, profiles(full_name, email)")
@@ -1572,6 +1630,7 @@ export const notificationAPI = {
       .limit(safeLimit);
     if (error) throw error;
     return data || [];
+    }, CACHE_TTL.short);
   },
 
   async createNotification(payload = {}) {
@@ -1604,7 +1663,10 @@ export const notificationAPI = {
         notification_message: message,
         notification_type: type,
       });
-      if (!error) return data || [];
+      if (!error) {
+        invalidateCache("notifications");
+        return data || [];
+      }
 
       const isMissingRpc =
         error.code === "PGRST202" ||
@@ -1623,7 +1685,7 @@ export const notificationAPI = {
         throw new Error("No active employee recipients found.");
       }
 
-      return insertRows(
+      const created = await insertRows(
         employeeIds.map((userId) => ({
           user_id: userId,
           title,
@@ -1635,6 +1697,8 @@ export const notificationAPI = {
           },
         }))
       );
+      invalidateCache("notifications");
+      return created;
     }
 
     if (!targetUserIds.length) {
@@ -1652,7 +1716,9 @@ export const notificationAPI = {
       },
     }));
 
-    return insertRows(rows);
+    const created = await insertRows(rows);
+    invalidateCache("notifications");
+    return created;
   },
 
   async markRead(id) {
@@ -1664,6 +1730,7 @@ export const notificationAPI = {
       .select("*")
       .single();
     if (error) throw error;
+    invalidateCache("notifications");
     return data;
   },
 
@@ -1708,6 +1775,7 @@ export const notificationAPI = {
       }
     );
 
+    invalidateCache("notifications");
     return data;
   },
 
@@ -1718,6 +1786,7 @@ export const notificationAPI = {
       .delete()
       .eq("id", safeId);
     if (error) throw error;
+    invalidateCache("notifications");
     return true;
   },
 };
@@ -1728,6 +1797,7 @@ export const adminAPI = {
   },
 
   async getDashboardStats(startDate, endDate) {
+    return getCached(cacheKey("admin-dashboard", startDate, endDate), async () => {
     const [users, attendance, leaves, departments] = await Promise.all([
       profileAPI.getAllUsers(),
       attendanceAPI.getAllRecords(startDate, endDate),
@@ -1758,6 +1828,7 @@ export const adminAPI = {
         departments: departments.length,
       },
     };
+    }, CACHE_TTL.short);
   },
 
   async createEmployee(payload) {
@@ -1778,6 +1849,7 @@ export const adminAPI = {
       body: safePayload,
     });
     if (error) throw error;
+    invalidateUserCache();
     return data;
   },
 
@@ -1800,12 +1872,14 @@ export const adminAPI = {
   },
 
   async getHolidays() {
+    return getCached("holidays:all", async () => {
     const { data, error } = await supabase
       .from("holidays")
       .select("*")
       .order("date", { ascending: true });
     if (error) throw error;
     return data || [];
+    }, CACHE_TTL.long);
   },
 
   async saveHoliday(payload) {
@@ -1820,6 +1894,7 @@ export const adminAPI = {
       : supabase.from("holidays").insert(safePayload);
     const { data, error } = await query.select("*").single();
     if (error) throw error;
+    invalidateCache("holidays");
     return data;
   },
 
@@ -1830,6 +1905,7 @@ export const adminAPI = {
       .delete()
       .eq("id", safeId);
     if (error) throw error;
+    invalidateCache("holidays");
     return true;
   },
 };

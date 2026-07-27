@@ -1,13 +1,18 @@
-import { FourSquare } from "react-loading-indicators";
 import "./loader.css";
-
-const brandLoaderColors = ["#7c3aed", "#ec4899", "#06b6d4", "#9ed7ff"];
 
 const Loader = ({ mode = "screen", label = "Loading" }) => {
   return (
-    <div className={`loader-overlay ${mode === "panel" ? "panel" : ""}`}>
-      <div className="loader-spinner" aria-label={label}>
-        <FourSquare color={brandLoaderColors} size="medium" text="" textColor="#edf2ff" />
+    <div className={`loader-overlay ${mode === "panel" ? "panel" : ""}`} aria-live="polite" aria-busy="true">
+      <div className="loader-skeleton" aria-label={label} role="status">
+        <span className="loader-kicker" />
+        <span className="loader-title" />
+        <span className="loader-line" />
+        <span className="loader-line short" />
+        <div className="loader-grid">
+          <span />
+          <span />
+          <span />
+        </div>
       </div>
     </div>
   );

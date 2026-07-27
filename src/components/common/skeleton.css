@@ -1,0 +1,38 @@
+.skeleton-block {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  max-width: 100%;
+  min-height: 1em;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.075);
+  vertical-align: middle;
+}
+
+.skeleton-block.is-rounded {
+  border-radius: 999px;
+}
+
+.skeleton-block::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  animation: shimmer 1.25s ease-in-out infinite;
+}
+
+.skeleton-row td {
+  height: 58px;
+}
+
+.skeleton-metric {
+  display: grid;
+  align-content: space-between;
+  gap: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block::after {
+    animation: none;
+  }
+}
